@@ -29,7 +29,18 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     showToast('Welcome to WatchTogether!', 'info');
 });
+const firebaseConfig = {
+  apiKey: "AIzaSyDXjTWrvSZWZvQ8eHlLSCDbF16LmN4-t9U",
+  authDomain: "watching-together-65150.firebaseapp.com",
+  projectId: "watching-together-65150",
+  storageBucket: "watching-together-65150.firebasestorage.app",
+  messagingSenderId: "735510866371",
+  appId: "1:735510866371:web:a58ba3f66966420dc8f576"
+};
+firebase.initializeApp(firebaseConfig);
 
+// Get a reference to the realtime database
+const database = firebase.database();
 function setupEventListeners() {
     console.log('Setting up event listeners...');
     
