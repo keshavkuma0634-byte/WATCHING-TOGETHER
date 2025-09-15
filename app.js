@@ -85,61 +85,78 @@ function setupWatchInterfaceListeners() {
 }
 
 function createRoom() {
-  try {
-    const roomId = generateRoomId();
-    currentRoomId = roomId;
-    showLoading('Creating room...');
-    setTimeout(() => {
-      hideLoading();
-      if (showWatchInterface()) {
-        updateConnectionStatus('connected');
-        showToast('Room ' + roomId + ' created successfully!', 'success');
-        setupFirebaseListeners();
-      } else {
-        showToast('Error creating room', 'error');
-      }
-    }, 300);
-  } catch (error) {
-    console.error('Error in createRoom:', error);
-    hideLoading();
-    showToast('Error creating room', 'error');
-  }
+  const maxUsersInput = document.getElementById('max-users-input');
+  const maxUsers = maxUsersInput ? parseInt(maxUsersInput.value, 10) : 2; // default 2 if none
+
+  currentRoomId = generateRoomId();
+  const roomRef = database.ref('rooms/' + currentRoomId);
+
+  roomRef.set({
+    maxUsers: maxUsers,
+    users: {}, // initially empty
+    videoState: {
+      videoId: null,
+      isPlaying: false,
+      currentTime: 0
+    }
+  }).then(() => {
+    showToast('Room created with max users: ' + maxUsers, 'success');
+    // Add self to users list
+    joinRoomAsUser(currentRoomId, currentUser);
+    setupFirebaseListeners();
+    showWatchInterface();
+  }).catch(error => {
+    showToast('Error creating room: ' + error.message, 'error');
+  });
 }
 
+
 function joinRoom() {
-  try {
-    const roomInput = document.getElementById('room-id-input');
-    if (!roomInput) {
-      showToast('Room input not found', 'error');
+  const roomInput = document.getElementById('room-id-input');
+  const roomId = roomInput.value.trim().toUpperCase();
+
+  const roomRef = database.ref('rooms/' + roomId);
+  roomRef.once('value').then(snapshot => {
+    const roomData = snapshot.val();
+    if (!roomData) {
+      showToast('Room does not exist.', 'error');
       return;
     }
-    const roomId = roomInput.value.trim().toUpperCase();
-    if (!roomId) {
-      showToast('Please enter a room ID', 'error');
+    if (!roomData.maxUsers) {
+      showToast('Room configuration invalid.', 'error');
       return;
     }
-    if (roomId.length < 6) {
-      showToast('Room ID must be at least 6 characters', 'error');
+    const users = roomData.users || {};
+    const currentUsersCount = Object.keys(users).length;
+    if (currentUsersCount >= roomData.maxUsers) {
+      showToast('Room is full.', 'error');
       return;
     }
+    // Add yourself to users list
+    joinRoomAsUser(roomId, currentUser);
     currentRoomId = roomId;
-    showLoading('Joining room...');
-    setTimeout(() => {
-      hideLoading();
-      if (showWatchInterface()) {
-        updateConnectionStatus('connected');
-        showToast('Joined room ' + roomId + ' successfully!', 'success');
-        setupFirebaseListeners();
-      } else {
-        showToast('Error joining room', 'error');
-      }
-    }, 300);
-  } catch (error) {
-    console.error('Error in joinRoom:', error);
-    hideLoading();
-    showToast('Error joining room', 'error');
-  }
+    setupFirebaseListeners();
+    showWatchInterface();
+    showToast('Joined room successfully!', 'success');
+  });
 }
+
+function joinRoomAsUser(roomId, username) {
+  const userRef = database.ref(`rooms/${roomId}/users/${username}`);
+  userRef.set({
+    joinedAt: Date.now()
+  });
+
+  // Show join popup for all
+  const usersRef = database.ref(`rooms/${roomId}/users`);
+  usersRef.on('child_added', snapshot => {
+    const joinedUser = snapshot.key;
+    if (joinedUser !== currentUser) {
+      addChatMessage('System', `${joinedUser} joined the room`);
+    }
+  });
+}
+
 
 function setupFirebaseListeners() {
   const roomRef = database.ref('rooms/' + currentRoomId);
@@ -354,7 +371,7 @@ function addChatMessage(userId, message, timestamp = null) {
   if (!messagesContainer) return;
 
   const messageElement = document.createElement('div');
-  messageElement.className = 'chat-message';
+  messageElement.className = 'chat-message' + (userId === 'System' ? ' system-message' : '');
 
   const isOwnMessage = userId === currentUser;
   const messageTime = timestamp ? new Date(timestamp) : new Date();
