@@ -20,6 +20,41 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+const auth = firebase.auth();
+
+function sendSignInLink(email) {
+  const actionCodeSettings = {
+    url: window.location.href, // Redirect back to your app url after clicking link
+    handleCodeInApp: true
+  };
+
+  auth.sendSignInLinkToEmail(email, actionCodeSettings)
+    .then(() => {
+      window.localStorage.setItem('emailForSignIn', email);
+      alert('Email sign-in link sent! Please check your inbox.');
+    })
+    .catch(error => {
+      alert('Error sending email link: ' + error.message);
+    });
+}
+window.onload = () => {
+  if (auth.isSignInWithEmailLink(window.location.href)) {
+    let email = window.localStorage.getItem('emailForSignIn');
+    if (!email) {
+      email = window.prompt('Please provide your email for confirmation');
+    }
+    auth.signInWithEmailLink(email, window.location.href)
+      .then(result => {
+        window.localStorage.removeItem('emailForSignIn');
+        currentUser = result.user.email;  // Set your app's currentUser here
+        alert('Successfully signed in as ' + currentUser);
+        // Proceed to app main UI
+      })
+      .catch(error => {
+        alert('Error signing in: ' + error.message);
+      });
+  }
+};
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
