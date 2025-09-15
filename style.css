@@ -984,6 +984,10 @@ select.form-control {
   flex-direction: column;
   gap: var(--space-12);
 }
+.chat-message.system-message .message-user {
+  color: #888;
+  font-style: italic;
+}
 
 .chat-message {
   display: flex;
