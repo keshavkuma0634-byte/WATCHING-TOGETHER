@@ -27,8 +27,10 @@ const sampleMessages = [
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing app...');
     setupEventListeners();
+    hideLoading();  // Add this line to hide loading spinner initially
     showToast('Welcome to WatchTogether!', 'info');
 });
+
 const firebaseConfig = {
   apiKey: "AIzaSyDXjTWrvSZWZvQ8eHlLSCDbF16LmN4-t9U",
   authDomain: "watching-together-65150.firebaseapp.com",
