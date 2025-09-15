@@ -29,31 +29,27 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setupEventListeners() {
-  console.log('Setting up event listeners...');
-
-  // Landing page events
   const createBtn = document.getElementById('create-room-btn');
   const joinBtn = document.getElementById('join-room-btn');
   const roomInput = document.getElementById('room-id-input');
 
   if (createBtn) {
-    createBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      createRoom();
-    });
+      createBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          createRoom();
+      });
   }
   if (joinBtn) {
-    joinBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      joinRoom();
-    });
+      joinBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          joinRoom();
+      });
   }
   if (roomInput) {
-    roomInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') joinRoom();
-    });
+      roomInput.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') joinRoom();
+      });
   }
-
   setupWatchInterfaceListeners();
 }
 
@@ -207,6 +203,7 @@ function updateConnectionStatus(status) {
     'connected': { text: 'Connected', class: 'status status--success' },
     'disconnected': { text: 'Disconnected', class: 'status status--error' }
   };
+
   const statusInfo = statusMap[status];
   if (statusInfo) {
     indicator.textContent = statusInfo.text;
@@ -255,7 +252,6 @@ function loadVideo() {
   currentVideoId = videoId;
   showLoading('Loading video...');
 
-  // Hide placeholder and show player container
   const placeholder = document.getElementById('video-placeholder');
   const playerDiv = document.getElementById('youtube-player');
   if (placeholder) placeholder.style.display = 'none';
@@ -408,7 +404,6 @@ function updateSyncStatus(status) {
   }
 }
 
-// Add other UI utility & video call functions as before...
 // Video Call Functions
 
 function startVideoCall() {
@@ -443,7 +438,6 @@ function startVideoCall() {
       showToast('Video call started!', 'success');
       addChatMessage(partner, 'Joined the video call! 📹');
 
-      // Store local stream for later mute/unmute
       window.localStream = stream;
     })
     .catch(error => {
@@ -471,7 +465,6 @@ function endVideoCall() {
     startBtn.disabled = false;
   }
 
-  // Stop all tracks of local stream
   if (window.localStream) {
     window.localStream.getTracks().forEach(track => track.stop());
     window.localStream = null;
@@ -532,7 +525,36 @@ function toggleMinimizeCall() {
   }
 }
 
-// Utility function for draggable video call window
+function showLoading(message = 'Loading...') {
+  const loadingMessage = document.getElementById('loading-message');
+  const loadingOverlay = document.getElementById('loading-overlay');
+
+  if (loadingMessage) loadingMessage.textContent = message;
+  if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+}
+
+function hideLoading() {
+  const loadingOverlay = document.getElementById('loading-overlay');
+  if (loadingOverlay) loadingOverlay.classList.add('hidden');
+}
+
+function showToast(message, type = 'info', duration = 3000) {
+  const toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+
+  toastContainer.appendChild(toast);
+
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.remove();
+    }
+  }, duration);
+}
+
 function makeElementDraggable(element) {
   if (!element) return;
 
@@ -556,12 +578,10 @@ function makeElementDraggable(element) {
     pos2 = pos4 - e.clientY;
     pos3 = e.clientX;
     pos4 = e.clientY;
-    let newTop = element.offsetTop - pos2;
-    let newLeft = element.offsetLeft - pos1;
     const winHeight = window.innerHeight;
     const winWidth = window.innerWidth;
-    element.style.top = Math.max(0, Math.min(newTop, winHeight - element.offsetHeight)) + "px";
-    element.style.left = Math.max(0, Math.min(newLeft, winWidth - element.offsetWidth)) + "px";
+    element.style.top = Math.max(0, Math.min(element.offsetTop - pos2, winHeight - element.offsetHeight)) + "px";
+    element.style.left = Math.max(0, Math.min(element.offsetLeft - pos1, winWidth - element.offsetWidth)) + "px";
   }
 
   function closeDragElement() {
@@ -569,4 +589,3 @@ function makeElementDraggable(element) {
     document.onmousemove = null;
   }
 }
-
