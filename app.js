@@ -409,3 +409,164 @@ function updateSyncStatus(status) {
 }
 
 // Add other UI utility & video call functions as before...
+// Video Call Functions
+
+function startVideoCall() {
+  if (isVideoCallActive) {
+    showToast('Video call already active', 'info');
+    return;
+  }
+
+  showLoading('Starting video call...');
+
+  navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    .then(stream => {
+      hideLoading();
+      isVideoCallActive = true;
+
+      const videoCallWindow = document.getElementById('video-call-window');
+      const localVideo = document.getElementById('local-video');
+      const startBtn = document.getElementById('start-video-call-btn');
+
+      if (videoCallWindow) videoCallWindow.classList.remove('hidden');
+
+      if (localVideo) {
+        localVideo.srcObject = stream;
+        localVideo.play();
+      }
+
+      if (startBtn) {
+        startBtn.textContent = 'Video Call Active';
+        startBtn.disabled = true;
+      }
+
+      showToast('Video call started!', 'success');
+      addChatMessage(partner, 'Joined the video call! 📹');
+
+      // Store local stream for later mute/unmute
+      window.localStream = stream;
+    })
+    .catch(error => {
+      hideLoading();
+      showToast('Failed to access camera/mic: ' + error.message, 'error');
+    });
+}
+
+function endVideoCall() {
+  isVideoCallActive = false;
+
+  const videoCallWindow = document.getElementById('video-call-window');
+  const localVideo = document.getElementById('local-video');
+  const startBtn = document.getElementById('start-video-call-btn');
+
+  if (videoCallWindow) videoCallWindow.classList.add('hidden');
+
+  if (localVideo) {
+    localVideo.pause();
+    localVideo.srcObject = null;
+  }
+
+  if (startBtn) {
+    startBtn.textContent = 'Start Video Call';
+    startBtn.disabled = false;
+  }
+
+  // Stop all tracks of local stream
+  if (window.localStream) {
+    window.localStream.getTracks().forEach(track => track.stop());
+    window.localStream = null;
+  }
+
+  showToast('Video call ended', 'info');
+  addChatMessage(partner, 'Left the video call');
+}
+
+function toggleAudio() {
+  if (!window.localStream) return;
+
+  isAudioEnabled = !isAudioEnabled;
+  window.localStream.getAudioTracks().forEach(track => track.enabled = isAudioEnabled);
+
+  const btn = document.getElementById('toggle-audio-btn');
+  if (btn) {
+    btn.classList.toggle('active', isAudioEnabled);
+    const icon = btn.querySelector('.control-icon');
+    if (icon) {
+      icon.textContent = isAudioEnabled ? '🎤' : '🔇';
+    }
+  }
+
+  showToast(isAudioEnabled ? 'Audio enabled' : 'Audio muted', 'info');
+}
+
+function toggleVideo() {
+  if (!window.localStream) return;
+
+  isVideoEnabled = !isVideoEnabled;
+  window.localStream.getVideoTracks().forEach(track => track.enabled = isVideoEnabled);
+
+  const btn = document.getElementById('toggle-video-btn');
+  if (btn) {
+    btn.classList.toggle('active', isVideoEnabled);
+    const icon = btn.querySelector('.control-icon');
+    if (icon) {
+      icon.textContent = isVideoEnabled ? '📹' : '📷';
+    }
+  }
+
+  const localVideo = document.getElementById('local-video');
+  if (localVideo) {
+    localVideo.style.display = isVideoEnabled ? 'block' : 'none';
+  }
+
+  showToast(isVideoEnabled ? 'Video enabled' : 'Video disabled', 'info');
+}
+
+function toggleMinimizeCall() {
+  const callWindow = document.getElementById('video-call-window');
+  const btn = document.getElementById('minimize-call-btn');
+
+  if (callWindow && btn) {
+    callWindow.classList.toggle('minimized');
+    btn.textContent = callWindow.classList.contains('minimized') ? '+' : '−';
+  }
+}
+
+// Utility function for draggable video call window
+function makeElementDraggable(element) {
+  if (!element) return;
+
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  const header = element.querySelector('.video-call-header');
+
+  if (header) {
+    header.style.cursor = 'move';
+    header.onmousedown = function(e) {
+      e.preventDefault();
+      pos3 = e.clientX;
+      pos4 = e.clientY;
+      document.onmouseup = closeDragElement;
+      document.onmousemove = elementDrag;
+    };
+  }
+
+  function elementDrag(e) {
+    e.preventDefault();
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    let newTop = element.offsetTop - pos2;
+    let newLeft = element.offsetLeft - pos1;
+    const winHeight = window.innerHeight;
+    const winWidth = window.innerWidth;
+    element.style.top = Math.max(0, Math.min(newTop, winHeight - element.offsetHeight)) + "px";
+    element.style.left = Math.max(0, Math.min(newLeft, winWidth - element.offsetWidth)) + "px";
+  }
+
+  function closeDragElement() {
+    document.onmouseup = null;
+    document.onmousemove = null;
+  }
+}
+
