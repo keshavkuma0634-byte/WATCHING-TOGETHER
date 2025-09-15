@@ -12,6 +12,7 @@ let isVideoEnabled = true;
 const firebaseConfig = {
   apiKey: "AIzaSyDXjTWrvSZWZvQ8eHlLSCDbF16LmN4-t9U",
   authDomain: "watching-together-65150.firebaseapp.com",
+  databaseURL: "https://watching-together-65150-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "watching-together-65150",
   storageBucket: "watching-together-65150.firebasestorage.app",
   messagingSenderId: "735510866371",
