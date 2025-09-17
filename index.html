@@ -1,94 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WatchTogether - Synchronized Movie Watching</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WatchTogether - Synchronized Movie Watching</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <!-- YouTube API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
-  <div id="loading-overlay" class="hidden">
-    <div id="loading-message">Loading...</div>
-  </div>
-  <div id="toast-container"></div>
-
-  <div id="email-login-panel" class="modal">
-    <div class="modal-content">
-      <h2>Welcome to <span class="brand-accent">WatchTogether</span></h2>
-      <p>Share the moment, anywhere! Sign in with email to start your party.</p>
-      <input id="email-input" type="email" placeholder="Type your email…" autocomplete="off" />
-      <button id="send-login-link-btn">Send Magic Link</button>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden">
+        <div class="loading-spinner"></div>
+        <div id="loading-message">Loading...</div>
     </div>
-  </div>
 
-  <div id="landing-page" style="display:none;">
-    <div class="card">
-      <h1><span class="brand-accent">WatchTogether</span></h1>
-      <p class="subtitle">Watch. Chat. Sync. Celebrate!</p>
-      <div class="divider"></div>
-      <div id="max-users-section" class="input-group">
-        <label for="max-users-input">Max users in room:</label>
-        <input id="max-users-input" type="number" min="2" max="10" value="2" />
-      </div>
-      <button id="create-room-btn" class="primary">🎬 Create Room</button>
-      <div class="divider"></div>
-      <input id="room-id-input" type="text" placeholder="Enter Room ID to join…" />
-      <button id="join-room-btn" class="accent">🔗 Join Room</button>
-      <div id="your-email-display" class="caption"></div>
-    </div>
-  </div>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
 
-  <div id="watch-interface" class="hidden">
-    <div id="room-info" class="card row">
-      <span>Room ID: <span id="current-room-id" class="brand-accent"></span></span>
-      <button id="copy-room-id" class="small">Copy</button>
-      <span id="connection-indicator" class="status status--info">Disconnected</span>
-      <span id="creator-status" class="caption"></span>
-    </div>
-    <div class="main-row">
-      <div id="video-section" class="card">
-        <div id="video-placeholder" class="ghost-block">Paste a YouTube link below to start</div>
-        <div id="youtube-player" style="display:none;"></div>
-        <div class="input-group">
-          <input id="video-url-input" placeholder="Paste YouTube URL here…" />
-          <button id="load-video-btn" class="accent">▶ Load Video</button>
+    <!-- Email Authentication Panel -->
+    <div id="auth-panel">
+        <div class="card">
+            <h1>🎬 WatchTogether</h1>
+            <p>Watch movies together, anywhere!</p>
+            <div class="input-group">
+                <input type="email" id="email-input" placeholder="Enter your email" required>
+                <button id="send-link-btn">Send Magic Link</button>
+            </div>
+            <p class="note">We'll send you a secure link to sign in</p>
         </div>
-        <button id="resync-btn" class="small">🔄 Re-sync</button>
-        <span id="sync-indicator" class="status status--info">Not Synced</span>
-      </div>
-      <div id="chat-section" class="card">
-        <h3 class="accent-txt">Party Chat</h3>
-        <div id="chat-messages"></div>
-        <div class="input-group">
-          <input id="chat-input" placeholder="Type your message…" />
-          <button id="send-message-btn" class="primary">💬 Send</button>
-        </div>
-      </div>
     </div>
-    <!-- History panel (creator only) -->
-    <div id="history-panel" class="hidden card">
-      <h3 class="accent-txt">Session History (Creator Only)</h3>
-      <div id="history-log"></div>
-    </div>
-    <!-- Video call window -->
-    <div id="video-call-window" class="hidden card">
-      <div class="video-call-header">📞 Video Call
-        <button id="minimize-call-btn" class="small">-</button>
-        <button id="close-call-btn" class="small">✖</button>
-      </div>
-      <video id="local-video" autoplay muted playsinline></video>
-      <div id="remote-video" class="video-placeholder-call">Partner Video Here</div>
-      <div class="video-call-controls">
-        <button id="toggle-audio-btn"><span class="control-icon">🎤</span></button>
-        <button id="toggle-video-btn"><span class="control-icon">📹</span></button>
-      </div>
-    </div>
-  </div>
 
-  <script src="app.js"></script>
+    <!-- Main App Panel -->
+    <div id="app-panel" class="hidden">
+        <!-- Landing Page -->
+        <div id="landing-page">
+            <div class="card">
+                <h1>🎬 WatchTogether</h1>
+                <p class="user-info">Welcome, <span id="user-email"></span>!</p>
+
+                <div class="section">
+                    <h3>Create New Room</h3>
+                    <div class="input-group">
+                        <label>Max Users:</label>
+                        <input type="number" id="max-users" min="2" max="10" value="2">
+                    </div>
+                    <button id="create-room-btn" class="primary">Create Room</button>
+                </div>
+
+                <div class="divider">OR</div>
+
+                <div class="section">
+                    <h3>Join Existing Room</h3>
+                    <div class="input-group">
+                        <input type="text" id="room-id-input" placeholder="Enter Room ID">
+                        <button id="join-room-btn" class="secondary">Join Room</button>
+                    </div>
+                </div>
+
+                <button id="sign-out-btn" class="small">Sign Out</button>
+            </div>
+        </div>
+
+        <!-- Watch Interface -->
+        <div id="watch-interface" class="hidden">
+            <div class="header-bar">
+                <div class="room-info">
+                    <span>Room: <strong id="room-id-display"></strong></span>
+                    <button id="copy-room-btn" class="small">Copy</button>
+                    <span id="user-role" class="badge"></span>
+                </div>
+                <button id="back-to-lobby-btn" class="small">Back to Lobby</button>
+            </div>
+
+            <div class="main-content">
+                <!-- Video Section -->
+                <div class="video-section">
+                    <div id="video-container">
+                        <div id="video-placeholder">
+                            <p>Load a YouTube video to start watching together!</p>
+                        </div>
+                        <div id="youtube-player" style="display: none;"></div>
+                    </div>
+                    <div class="video-controls">
+                        <div class="input-group">
+                            <input type="url" id="video-url-input" placeholder="Paste YouTube URL here">
+                            <button id="load-video-btn">Load Video</button>
+                        </div>
+                        <div class="control-buttons">
+                            <button id="sync-btn" class="small">Sync Video</button>
+                            <span id="sync-status" class="status">Ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Section -->
+                <div class="chat-section">
+                    <div class="chat-header">
+                        <h3>Chat</h3>
+                        <button id="start-call-btn" class="call-btn">📞 Video Call</button>
+                    </div>
+                    <div id="chat-messages"></div>
+                    <div class="chat-input-group">
+                        <input type="text" id="chat-input" placeholder="Type a message...">
+                        <button id="send-chat-btn">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Creator Controls -->
+            <div id="creator-controls" class="hidden">
+                <div class="card">
+                    <h3>Creator Controls</h3>
+                    <div id="pending-requests"></div>
+                    <div id="room-users"></div>
+                </div>
+            </div>
+
+            <!-- Join Request Modal -->
+            <div id="join-request-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h3>New Join Request</h3>
+                    <p><strong id="requester-email"></strong> wants to join your room.</p>
+                    <div class="modal-buttons">
+                        <button id="approve-btn" class="primary">Approve</button>
+                        <button id="reject-btn" class="secondary">Reject</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Call Window -->
+            <div id="video-call-window" class="hidden">
+                <div class="call-header">
+                    <span>Video Call</span>
+                    <div class="call-controls">
+                        <button id="toggle-audio">🎤</button>
+                        <button id="toggle-video">📹</button>
+                        <button id="end-call">❌</button>
+                    </div>
+                </div>
+                <div class="video-streams">
+                    <video id="local-video" autoplay muted></video>
+                    <video id="remote-video" autoplay></video>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
