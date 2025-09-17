@@ -21,13 +21,16 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const auth = firebase.auth();
-
+function showEmailLoginPanel() {
+  document.getElementById('landing-page').style.display = 'none';
+  // Show a panel/section for email entry and sign-in
+  document.getElementById('email-login-panel').classList.remove('hidden');
+}
 function sendSignInLink(email) {
   const actionCodeSettings = {
-    url: window.location.href, // Redirect back to your app url after clicking link
+    url: window.location.href,
     handleCodeInApp: true
   };
-
   auth.sendSignInLinkToEmail(email, actionCodeSettings)
     .then(() => {
       window.localStorage.setItem('emailForSignIn', email);
@@ -37,6 +40,7 @@ function sendSignInLink(email) {
       alert('Error sending email link: ' + error.message);
     });
 }
+
 window.onload = () => {
   if (auth.isSignInWithEmailLink(window.location.href)) {
     let email = window.localStorage.getItem('emailForSignIn');
@@ -46,13 +50,25 @@ window.onload = () => {
     auth.signInWithEmailLink(email, window.location.href)
       .then(result => {
         window.localStorage.removeItem('emailForSignIn');
-        currentUser = result.user.email;  // Set your app's currentUser here
-        alert('Successfully signed in as ' + currentUser);
-        // Proceed to app main UI
+        currentUser = result.user.email;
+        showToast('Signed in as ' + currentUser, 'success');
+        document.getElementById('email-login-panel').classList.add('hidden');
+        document.getElementById('landing-page').style.display = 'block';
       })
       .catch(error => {
         alert('Error signing in: ' + error.message);
       });
+  } else {
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user.email;
+        showToast('Signed in as ' + currentUser, 'success');
+        document.getElementById('email-login-panel').classList.add('hidden');
+        document.getElementById('landing-page').style.display = 'block';
+      } else {
+        showEmailLoginPanel();
+      }
+    });
   }
 };
 
@@ -64,29 +80,30 @@ document.addEventListener('DOMContentLoaded', function() {
   showToast('Welcome to WatchTogether!', 'info');
 });
 
+
 function setupEventListeners() {
   const createBtn = document.getElementById('create-room-btn');
   const joinBtn = document.getElementById('join-room-btn');
   const roomInput = document.getElementById('room-id-input');
 
   if (createBtn) {
-      createBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          createRoom();
-      });
+    createBtn.addEventListener('click', e => {
+      e.preventDefault();
+      createRoom();
+    });
   }
   if (joinBtn) {
-      joinBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          joinRoom();
-      });
+    joinBtn.addEventListener('click', e => {
+      e.preventDefault();
+      joinRoom();
+    });
   }
   if (roomInput) {
-      roomInput.addEventListener('keypress', function(e) {
-          if (e.key === 'Enter') joinRoom();
-      });
+    roomInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter') joinRoom();
+    });
   }
-  setupWatchInterfaceListeners();
+   setupWatchInterfaceListeners();
 }
 
 function setupWatchInterfaceListeners() {
@@ -120,62 +137,105 @@ function setupWatchInterfaceListeners() {
 }
 
 function createRoom() {
+  if (!currentUser) {
+    showToast('Please login before creating a room', 'error');
+    return;
+  }
   const maxUsersInput = document.getElementById('max-users-input');
-  const maxUsers = maxUsersInput ? parseInt(maxUsersInput.value, 10) : 2; // default 2 if none
-
+  const maxUsers = maxUsersInput ? parseInt(maxUsersInput.value, 10) : 2;
   currentRoomId = generateRoomId();
   const roomRef = database.ref('rooms/' + currentRoomId);
-
+  showLoading('Creating room...');
   roomRef.set({
-    maxUsers: maxUsers,
-    users: {}, // initially empty
-    videoState: {
-      videoId: null,
-      isPlaying: false,
-      currentTime: 0
-    }
+    creator: currentUser,
+    maxUsers,
+    users: {},
+    joinRequests: {},
+    videoState: { videoId: null, isPlaying: false, currentTime: 0 },
+    history: {}
   }).then(() => {
-    showToast('Room created with max users: ' + maxUsers, 'success');
-    // Add self to users list
-    joinRoomAsUser(currentRoomId, currentUser);
+    hideLoading();
+    roomCreator = currentUser;
+    approveUser(currentRoomId, currentUser); // creator auto-approved
     setupFirebaseListeners();
+    setupJoinRequestApprovalListener(currentRoomId);
     showWatchInterface();
+    showToast('Room created: ' + currentRoomId, 'success');
   }).catch(error => {
+    hideLoading();
     showToast('Error creating room: ' + error.message, 'error');
   });
 }
 
-
 function joinRoom() {
-  const roomInput = document.getElementById('room-id-input');
-  const roomId = roomInput.value.trim().toUpperCase();
-
+  if (!currentUser) {
+    showToast('Please login before joining a room', 'error');
+    return;
+  }
+  const roomId = document.getElementById('room-id-input').value.trim().toUpperCase();
+  if (!roomId) {
+    showToast('Please enter a room ID', 'error');
+    return;
+  }
   const roomRef = database.ref('rooms/' + roomId);
+  showLoading('Checking room...');
   roomRef.once('value').then(snapshot => {
-    const roomData = snapshot.val();
-    if (!roomData) {
-      showToast('Room does not exist.', 'error');
+    hideLoading();
+    const room = snapshot.val();
+    if (!room) {
+      showToast('Room does not exist', 'error');
       return;
     }
-    if (!roomData.maxUsers) {
-      showToast('Room configuration invalid.', 'error');
-      return;
-    }
-    const users = roomData.users || {};
-    const currentUsersCount = Object.keys(users).length;
-    if (currentUsersCount >= roomData.maxUsers) {
-      showToast('Room is full.', 'error');
-      return;
-    }
-    // Add yourself to users list
-    joinRoomAsUser(roomId, currentUser);
+    roomCreator = room.creator;
     currentRoomId = roomId;
-    setupFirebaseListeners();
-    showWatchInterface();
-    showToast('Joined room successfully!', 'success');
+    if (room.users && room.users[currentUser] && room.users[currentUser].approved) {
+      setupFirebaseListeners();
+      showWatchInterface();
+      setupJoinRequestApprovalListener(roomId);
+      showToast('Joined room successfully!', 'success');
+    } else {
+      // Send join request
+      database.ref(`rooms/${roomId}/joinRequests/${currentUser}`).set({ requestedAt: Date.now(), status: 'pending' });
+      showToast('Join request sent. Waiting for approval...', 'info');
+    }
+  }).catch(error => {
+    hideLoading();
+    showToast('Error fetching room data: ' + error.message, 'error');
+  });
+}
+function setupJoinRequestApprovalListener(roomId) {
+  if (currentUser !== roomCreator) return;
+  const joinReqRef = database.ref(`rooms/${roomId}/joinRequests`);
+  joinReqRef.on('child_added', snapshot => {
+    const username = snapshot.key;
+    const data = snapshot.val();
+    if (data.status === 'pending') {
+      // Show creator UI for approval (e.g., modal)
+      showApprovalPrompt(username, roomId);
+    }
   });
 }
 
+function showApprovalPrompt(username, roomId) {
+  if (confirm(`Approve user ${username} to join room?`)) {
+    approveUser(roomId, username);
+  } else {
+    rejectUser(roomId, username);
+  }
+}
+
+function approveUser(roomId, username) {
+  database.ref(`rooms/${roomId}/users/${username}`).set({ joinedAt: Date.now(), approved: true });
+  database.ref(`rooms/${roomId}/joinRequests/${username}`).update({ status: 'approved' });
+  addSystemMessage(`User ${username} approved to join room`);
+  showToast(`${username} approved`, 'success');
+}
+
+function rejectUser(roomId, username) {
+  database.ref(`rooms/${roomId}/joinRequests/${username}`).update({ status: 'rejected' });
+  addSystemMessage(`User ${username} rejected from room`);
+  showToast(`${username} rejected`, 'error');
+}
 function joinRoomAsUser(roomId, username) {
   const userRef = database.ref(`rooms/${roomId}/users/${username}`);
   userRef.set({
