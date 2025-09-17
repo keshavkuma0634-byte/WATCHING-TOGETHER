@@ -18,54 +18,67 @@
 
   <div id="email-login-panel" class="modal">
     <div class="modal-content">
-      <h3>Sign In to Continue</h3>
-      <input id="email-input" type="email" placeholder="Your Email" />
+      <h2>Welcome to <span class="brand-accent">WatchTogether</span></h2>
+      <p>Share the moment, anywhere! Sign in with email to start your party.</p>
+      <input id="email-input" type="email" placeholder="Type your email…" autocomplete="off" />
       <button id="send-login-link-btn">Send Magic Link</button>
     </div>
   </div>
 
   <div id="landing-page" style="display:none;">
-    <h1>WatchTogether</h1>
-    <div id="max-users-section">
-      <label for="max-users-input">Max users in room:</label>
-      <input id="max-users-input" type="number" min="2" max="10" value="2" />
+    <div class="card">
+      <h1><span class="brand-accent">WatchTogether</span></h1>
+      <p class="subtitle">Watch. Chat. Sync. Celebrate!</p>
+      <div class="divider"></div>
+      <div id="max-users-section" class="input-group">
+        <label for="max-users-input">Max users in room:</label>
+        <input id="max-users-input" type="number" min="2" max="10" value="2" />
+      </div>
+      <button id="create-room-btn" class="primary">🎬 Create Room</button>
+      <div class="divider"></div>
+      <input id="room-id-input" type="text" placeholder="Enter Room ID to join…" />
+      <button id="join-room-btn" class="accent">🔗 Join Room</button>
+      <div id="your-email-display" class="caption"></div>
     </div>
-    <button id="create-room-btn">Create Room</button>
-    <hr />
-    <input id="room-id-input" type="text" placeholder="Enter Room ID to join" />
-    <button id="join-room-btn">Join Room</button>
-    <div id="your-email-display"></div>
   </div>
 
   <div id="watch-interface" class="hidden">
-    <div id="room-info">
-      <span>Room ID: <span id="current-room-id"></span></span>
-      <button id="copy-room-id">Copy Room ID</button>
+    <div id="room-info" class="card row">
+      <span>Room ID: <span id="current-room-id" class="brand-accent"></span></span>
+      <button id="copy-room-id" class="small">Copy</button>
       <span id="connection-indicator" class="status status--info">Disconnected</span>
-      <span id="creator-status"></span>
+      <span id="creator-status" class="caption"></span>
     </div>
-    <div id="video-section">
-      <div id="video-placeholder">Paste a YouTube link below to start</div>
-      <div id="youtube-player" style="display:none;"></div>
-      <input id="video-url-input" placeholder="Paste YouTube URL here" />
-      <button id="load-video-btn">Load Video</button>
-      <button id="resync-btn">Re-sync</button>
-      <span id="sync-indicator" class="status status--info">Not Synced</span>
+    <div class="main-row">
+      <div id="video-section" class="card">
+        <div id="video-placeholder" class="ghost-block">Paste a YouTube link below to start</div>
+        <div id="youtube-player" style="display:none;"></div>
+        <div class="input-group">
+          <input id="video-url-input" placeholder="Paste YouTube URL here…" />
+          <button id="load-video-btn" class="accent">▶ Load Video</button>
+        </div>
+        <button id="resync-btn" class="small">🔄 Re-sync</button>
+        <span id="sync-indicator" class="status status--info">Not Synced</span>
+      </div>
+      <div id="chat-section" class="card">
+        <h3 class="accent-txt">Party Chat</h3>
+        <div id="chat-messages"></div>
+        <div class="input-group">
+          <input id="chat-input" placeholder="Type your message…" />
+          <button id="send-message-btn" class="primary">💬 Send</button>
+        </div>
+      </div>
     </div>
-    <div id="chat-section">
-      <div id="chat-messages"></div>
-      <input id="chat-input" placeholder="Type your message..." />
-      <button id="send-message-btn">Send</button>
-    </div>
-    <!-- Optional: Creator History Panel -->
-    <div id="history-panel" class="hidden">
-      <h3>Session History (Creator Only)</h3>
+    <!-- History panel (creator only) -->
+    <div id="history-panel" class="hidden card">
+      <h3 class="accent-txt">Session History (Creator Only)</h3>
       <div id="history-log"></div>
     </div>
-    <div id="video-call-window" class="hidden">
-      <div class="video-call-header">Video Call
-        <button id="minimize-call-btn">-</button>
-        <button id="close-call-btn">X</button>
+    <!-- Video call window -->
+    <div id="video-call-window" class="hidden card">
+      <div class="video-call-header">📞 Video Call
+        <button id="minimize-call-btn" class="small">-</button>
+        <button id="close-call-btn" class="small">✖</button>
       </div>
       <video id="local-video" autoplay muted playsinline></video>
       <div id="remote-video" class="video-placeholder-call">Partner Video Here</div>
