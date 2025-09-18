@@ -1,13 +1,19 @@
-// WatchTogether App - Complete Implementation
+// WatchTogether App - Complete Secure Implementation
 class WatchTogetherApp {
     constructor() {
+        // Core state
         this.currentUser = null;
         this.currentRoom = null;
         this.isCreator = false;
         this.youtubePlayer = null;
         this.localStream = null;
-        this.remoteStream = null;
 
+        // Data structures
+        this.roomMembers = new Map();
+        this.pendingRequests = new Map();
+        this.sessionHistory = [];
+
+        // Initialize Firebase and setup
         this.initializeFirebase();
         this.setupEventListeners();
         this.checkAuthState();
@@ -34,152 +40,175 @@ class WatchTogetherApp {
 
     setupEventListeners() {
         // Auth events
-        document.getElementById('send-link-btn').addEventListener('click', () => this.sendMagicLink());
+        document.getElementById('send-magic-link-btn').addEventListener('click', () => this.sendMagicLink());
+        document.getElementById('anonymous-signin-btn').addEventListener('click', () => this.signInAnonymously());
+        document.getElementById('creator-code-btn').addEventListener('click', () => this.signInWithCreatorCode());
         document.getElementById('sign-out-btn').addEventListener('click', () => this.signOut());
 
         // Room events
         document.getElementById('create-room-btn').addEventListener('click', () => this.createRoom());
         document.getElementById('join-room-btn').addEventListener('click', () => this.joinRoom());
-        document.getElementById('back-to-lobby-btn').addEventListener('click', () => this.backToLobby());
-        document.getElementById('copy-room-btn').addEventListener('click', () => this.copyRoomId());
+        document.getElementById('leave-room-btn').addEventListener('click', () => this.leaveRoom());
+
+        // Room controls
+        document.getElementById('copy-room-id-btn').addEventListener('click', () => this.copyRoomId());
+        document.getElementById('share-room-btn').addEventListener('click', () => this.shareRoom());
 
         // Video events
         document.getElementById('load-video-btn').addEventListener('click', () => this.loadVideo());
-        document.getElementById('sync-btn').addEventListener('click', () => this.syncVideo());
+        document.getElementById('sync-video-btn').addEventListener('click', () => this.syncVideo());
 
         // Chat events
         document.getElementById('send-chat-btn').addEventListener('click', () => this.sendMessage());
         document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
+            }
         });
 
         // Video call events
-        document.getElementById('start-call-btn').addEventListener('click', () => this.startVideoCall());
-        document.getElementById('end-call').addEventListener('click', () => this.endVideoCall());
-        document.getElementById('toggle-audio').addEventListener('click', () => this.toggleAudio());
-        document.getElementById('toggle-video').addEventListener('click', () => this.toggleVideo());
+        document.getElementById('video-call-btn').addEventListener('click', () => this.startVideoCall());
+        document.getElementById('end-call-btn').addEventListener('click', () => this.endVideoCall());
+        document.getElementById('toggle-mic-btn').addEventListener('click', () => this.toggleMicrophone());
+        document.getElementById('toggle-cam-btn').addEventListener('click', () => this.toggleCamera());
+        document.getElementById('close-call-btn').addEventListener('click', () => this.endVideoCall());
+        document.getElementById('minimize-call-btn').addEventListener('click', () => this.minimizeVideoCall());
 
         // Join request modal events
-        document.getElementById('approve-btn').addEventListener('click', () => this.approveJoinRequest());
-        document.getElementById('reject-btn').addEventListener('click', () => this.rejectJoinRequest());
+        document.getElementById('approve-request-btn').addEventListener('click', () => this.approveJoinRequest());
+        document.getElementById('reject-request-btn').addEventListener('click', () => this.rejectJoinRequest());
+
+        // Make video call window draggable
+        this.makeElementDraggable(document.getElementById('video-call-window'));
     }
 
+    // Authentication Methods
+    checkAuthState() {
+        this.showLoading('Checking authentication...');
 
-// Initialize Firebase Auth as usual at top:
-const auth = firebase.auth();
+        // Check if this is a magic link
+        if (this.auth.isSignInWithEmailLink(window.location.href)) {
+            this.handleMagicLinkSignIn();
+            return;
+        }
 
-function signInAnonymously() {
-  auth.signInAnonymously()
-    .then(result => {
-      currentUser = result.user;
-      console.log('Signed in anonymously as:', currentUser.uid);
-      showAppUIAfterSignIn(currentUser);
-    })
-    .catch(error => {
-      console.error('Anonymous sign-in failed:', error);
-      showToast('Sign-in error: ' + error.message, 'error');
-    });
-}
-
-// Replace window.onload or auth state check with:
-
-window.onload = function() {
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      currentUser = user;
-      showAppUIAfterSignIn(user);
-    } else {
-      // Sign in anonymously if not logged in
-      signInAnonymously();
+        // Check current auth state
+        this.auth.onAuthStateChanged((user) => {
+            this.hideLoading();
+            if (user) {
+                this.currentUser = user;
+                this.showApp();
+            } else {
+                this.showAuth();
+            }
+        });
     }
-  });
-};
 
-function showAppUIAfterSignIn(user) {
-  // Show main UI, set user email or ID
-  document.getElementById('auth-panel').classList.add('hidden');
-  document.getElementById('app-panel').classList.remove('hidden');
+    async sendMagicLink() {
+        const email = document.getElementById('email-input').value.trim();
+        if (!email) {
+            this.showToast('Please enter your email', 'error');
+            return;
+        }
 
-  // Show user info with UID since no email
-  document.getElementById('user-email').textContent = user.isAnonymous ? 'Guest User (' + user.uid.slice(0,6) + ')' : user.email;
+        const actionCodeSettings = {
+            url: window.location.href,
+            handleCodeInApp: true
+        };
 
-  // Other setup logic after sign-in
-}
+        try {
+            this.showLoading('Sending magic link...');
+            await this.auth.sendSignInLinkToEmail(email, actionCodeSettings);
+            localStorage.setItem('emailForSignIn', email);
+            this.hideLoading();
+            this.showToast('Magic link sent! Check your email.', 'success');
+        } catch (error) {
+            this.hideLoading();
+            if (error.code === 'auth/quota-exceeded') {
+                this.showToast('Email quota exceeded. Try anonymous sign-in or wait 24 hours.', 'warning');
+            } else {
+                this.showToast('Error: ' + error.message, 'error');
+            }
+        }
+    }
 
+    async handleMagicLinkSignIn() {
+        let email = localStorage.getItem('emailForSignIn');
+        if (!email) {
+            email = prompt('Please provide your email for confirmation');
+        }
 
-    // checkAuthState() {
-    //     this.showLoading('Checking authentication...');
+        try {
+            this.showLoading('Signing in...');
+            await this.auth.signInWithEmailLink(email, window.location.href);
+            localStorage.removeItem('emailForSignIn');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            this.hideLoading();
+            this.showToast('Successfully signed in!', 'success');
+        } catch (error) {
+            this.hideLoading();
+            this.showToast('Sign in error: ' + error.message, 'error');
+        }
+    }
 
-    //     // Check if this is a magic link
-    //     if (this.auth.isSignInWithEmailLink(window.location.href)) {
-    //         this.handleMagicLinkSignIn();
-    //         return;
-    //     }
+    async signInAnonymously() {
+        try {
+            this.showLoading('Signing in as guest...');
+            await this.auth.signInAnonymously();
+            this.hideLoading();
+            this.showToast('Signed in as guest!', 'success');
+        } catch (error) {
+            this.hideLoading();
+            this.showToast('Error: ' + error.message, 'error');
+        }
+    }
 
-    //     // Check current auth state
-    //     this.auth.onAuthStateChanged((user) => {
-    //         this.hideLoading();
-    //         if (user) {
-    //             this.currentUser = user;
-    //             this.showApp();
-    //         } else {
-    //             this.showAuth();
-    //         }
-    //     });
-    // }
+    async signInWithCreatorCode() {
+        const code = document.getElementById('creator-code-input').value.trim();
+        if (!code) {
+            this.showToast('Please enter creator code', 'error');
+            return;
+        }
 
-    // async sendMagicLink() {
-    //     const email = document.getElementById('email-input').value.trim();
-    //     if (!email) {
-    //         this.showToast('Please enter your email', 'error');
-    //         return;
-    //     }
+        // For demo - in production, verify this server-side
+        const VALID_CREATOR_CODES = ['CREATOR2024', 'ADMIN123', 'MASTER001'];
 
-    //     const actionCodeSettings = {
-    //         url: window.location.href,
-    //         handleCodeInApp: true
-    //     };
+        if (VALID_CREATOR_CODES.includes(code.toUpperCase())) {
+            try {
+                this.showLoading('Verifying creator code...');
+                await this.auth.signInAnonymously();
+                // Mark as creator
+                this.currentUser.isCreatorByCode = true;
+                this.currentUser.creatorCode = code.toUpperCase();
+                this.hideLoading();
+                this.showToast('Signed in as creator!', 'success');
+            } catch (error) {
+                this.hideLoading();
+                this.showToast('Error: ' + error.message, 'error');
+            }
+        } else {
+            this.showToast('Invalid creator code', 'error');
+        }
+    }
 
-    //     try {
-    //         this.showLoading('Sending magic link...');
-    //         await this.auth.sendSignInLinkToEmail(email, actionCodeSettings);
-    //         localStorage.setItem('emailForSignIn', email);
-    //         this.hideLoading();
-    //         this.showToast('Magic link sent! Check your email.', 'success');
-    //     } catch (error) {
-    //         this.hideLoading();
-    //         this.showToast('Error: ' + error.message, 'error');
-    //     }
-    // }
+    signOut() {
+        this.auth.signOut();
+        this.currentUser = null;
+        this.currentRoom = null;
+        this.isCreator = false;
+        this.showAuth();
+        this.showToast('Signed out', 'info');
+    }
 
-    // async handleMagicLinkSignIn() {
-    //     let email = localStorage.getItem('emailForSignIn');
-    //     if (!email) {
-    //         email = prompt('Please provide your email for confirmation');
-    //     }
-
-    //     try {
-    //         this.showLoading('Signing in...');
-    //         await this.auth.signInWithEmailLink(email, window.location.href);
-    //         localStorage.removeItem('emailForSignIn');
-    //         window.history.replaceState({}, document.title, window.location.pathname);
-    //         this.hideLoading();
-    //         this.showToast('Successfully signed in!', 'success');
-    //     } catch (error) {
-    //         this.hideLoading();
-    //         this.showToast('Sign in error: ' + error.message, 'error');
-    //     }
-    // }
-
-    // signOut() {
-    //     this.auth.signOut();
-    //     this.currentUser = null;
-    //     this.currentRoom = null;
-    //     this.showAuth();
-    // }
-
+    // Room Management
     async createRoom() {
-        const maxUsers = parseInt(document.getElementById('max-users').value) || 2;
+        if (!this.isAuthorizedCreator()) {
+            this.showToast('Only authorized creators can create rooms', 'error');
+            return;
+        }
+
+        const maxUsers = parseInt(document.getElementById('max-users-input').value) || 4;
         const roomId = this.generateRoomId();
 
         try {
@@ -187,23 +216,28 @@ function showAppUIAfterSignIn(user) {
 
             const roomData = {
                 id: roomId,
-                creator: this.currentUser.email,
+                creator: this.currentUser.uid,
+                creatorEmail: this.currentUser.email || 'Anonymous Creator',
                 maxUsers: maxUsers,
                 createdAt: Date.now(),
                 users: {
                     [this.currentUser.uid]: {
-                        email: this.currentUser.email,
+                        email: this.currentUser.email || 'Anonymous',
+                        displayName: this.getDisplayName(),
                         joinedAt: Date.now(),
-                        approved: true
+                        approved: true,
+                        isCreator: true
                     }
                 },
                 joinRequests: {},
                 videoState: {
                     videoId: null,
                     isPlaying: false,
-                    currentTime: 0
+                    currentTime: 0,
+                    lastUpdated: Date.now()
                 },
-                messages: {}
+                messages: {},
+                history: {}
             };
 
             await this.database.ref(`rooms/${roomId}`).set(roomData);
@@ -214,6 +248,7 @@ function showAppUIAfterSignIn(user) {
             this.showWatchInterface();
             this.setupRoomListeners();
             this.showToast(`Room ${roomId} created!`, 'success');
+            this.addToHistory(`Room created by ${this.getDisplayName()}`);
 
         } catch (error) {
             this.hideLoading();
@@ -239,22 +274,22 @@ function showAppUIAfterSignIn(user) {
                 return;
             }
 
-            // Check if already in room
+            // Check if already in room and approved
             if (roomData.users && roomData.users[this.currentUser.uid]) {
                 if (roomData.users[this.currentUser.uid].approved) {
                     this.currentRoom = roomId;
-                    this.isCreator = (roomData.creator === this.currentUser.email);
+                    this.isCreator = (roomData.creator === this.currentUser.uid);
                     this.hideLoading();
                     this.showWatchInterface();
                     this.setupRoomListeners();
-                    this.showToast('Joined room!', 'success');
+                    this.showToast('Rejoined room!', 'success');
                     return;
                 }
             }
 
             // Check room capacity
-            const userCount = Object.keys(roomData.users || {}).length;
-            if (userCount >= roomData.maxUsers) {
+            const approvedUserCount = Object.values(roomData.users || {}).filter(user => user.approved).length;
+            if (approvedUserCount >= roomData.maxUsers) {
                 this.hideLoading();
                 this.showToast('Room is full', 'error');
                 return;
@@ -262,7 +297,8 @@ function showAppUIAfterSignIn(user) {
 
             // Send join request
             await this.database.ref(`rooms/${roomId}/joinRequests/${this.currentUser.uid}`).set({
-                email: this.currentUser.email,
+                email: this.currentUser.email || 'Anonymous',
+                displayName: this.getDisplayName(),
                 requestedAt: Date.now(),
                 status: 'pending'
             });
@@ -278,103 +314,26 @@ function showAppUIAfterSignIn(user) {
         }
     }
 
-    setupRoomListeners() {
+    async leaveRoom() {
         if (!this.currentRoom) return;
 
-        const roomRef = this.database.ref(`rooms/${this.currentRoom}`);
-
-        // Listen for video state changes
-        roomRef.child('videoState').on('value', (snapshot) => {
-            const videoState = snapshot.val();
-            if (videoState) {
-                this.syncToVideoState(videoState);
-            }
-        });
-
-        // Listen for new messages
-        roomRef.child('messages').on('child_added', (snapshot) => {
-            const message = snapshot.val();
-            if (message) {
-                this.displayMessage(message);
-            }
-        });
-
-        // Listen for join requests (if creator)
-        if (this.isCreator) {
-            roomRef.child('joinRequests').on('child_added', (snapshot) => {
-                const request = snapshot.val();
-                if (request && request.status === 'pending') {
-                    this.showJoinRequestModal(snapshot.key, request);
-                }
-            });
-        }
-
-        // Listen for user changes
-        roomRef.child('users').on('value', (snapshot) => {
-            const users = snapshot.val() || {};
-            this.updateUsersList(users);
-        });
-    }
-
-    setupJoinRequestListener() {
-        if (!this.currentRoom) return;
-
-        this.database.ref(`rooms/${this.currentRoom}/joinRequests/${this.currentUser.uid}`)
-            .on('value', (snapshot) => {
-                const request = snapshot.val();
-                if (request) {
-                    if (request.status === 'approved') {
-                        this.showToast('Join request approved!', 'success');
-                        this.showWatchInterface();
-                        this.setupRoomListeners();
-                    } else if (request.status === 'rejected') {
-                        this.showToast('Join request rejected', 'error');
-                        this.backToLobby();
-                    }
-                }
-            });
-    }
-
-    async approveJoinRequest() {
-        const modal = document.getElementById('join-request-modal');
-        const userId = modal.dataset.userId;
-        const userEmail = modal.dataset.userEmail;
-
         try {
-            await this.database.ref(`rooms/${this.currentRoom}/users/${userId}`).set({
-                email: userEmail,
-                joinedAt: Date.now(),
-                approved: true
-            });
+            // Remove user from room
+            await this.database.ref(`rooms/${this.currentRoom}/users/${this.currentUser.uid}`).remove();
 
-            await this.database.ref(`rooms/${this.currentRoom}/joinRequests/${userId}`).update({
-                status: 'approved'
-            });
+            // Add to history
+            this.addToHistory(`${this.getDisplayName()} left the room`);
 
-            this.addSystemMessage(`${userEmail} joined the room`);
-            this.hideJoinRequestModal();
-            this.showToast('User approved', 'success');
+            this.currentRoom = null;
+            this.isCreator = false;
+            this.showLandingPage();
+            this.showToast('Left the room', 'info');
         } catch (error) {
-            this.showToast('Error approving user: ' + error.message, 'error');
+            this.showToast('Error leaving room: ' + error.message, 'error');
         }
     }
 
-    async rejectJoinRequest() {
-        const modal = document.getElementById('join-request-modal');
-        const userId = modal.dataset.userId;
-
-        try {
-            await this.database.ref(`rooms/${this.currentRoom}/joinRequests/${userId}`).update({
-                status: 'rejected'
-            });
-
-            this.hideJoinRequestModal();
-            this.showToast('User rejected', 'warning');
-        } catch (error) {
-            this.showToast('Error rejecting user: ' + error.message, 'error');
-        }
-    }
-
+    // Video Management
     async loadVideo() {
         const url = document.getElementById('video-url-input').value.trim();
         if (!url) {
@@ -399,21 +358,45 @@ function showAppUIAfterSignIn(user) {
             // Load video and update database
             this.youtubePlayer.loadVideoById(videoId);
 
-            await this.database.ref(`rooms/${this.currentRoom}/videoState`).set({
+            await this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
                 videoId: videoId,
                 isPlaying: false,
                 currentTime: 0,
-                updatedBy: this.currentUser.email,
-                updatedAt: Date.now()
+                lastUpdated: Date.now(),
+                updatedBy: this.currentUser.uid
             });
 
             this.hideLoading();
             this.showToast('Video loaded!', 'success');
-            this.addSystemMessage(`${this.currentUser.email} loaded a new video`);
+            this.addToHistory(`${this.getDisplayName()} loaded a new video`);
+            this.addSystemMessage(`${this.getDisplayName()} loaded a new video`);
+
+            document.getElementById('video-url-input').value = '';
 
         } catch (error) {
             this.hideLoading();
             this.showToast('Error loading video: ' + error.message, 'error');
+        }
+    }
+
+    async syncVideo() {
+        if (!this.youtubePlayer || !this.currentRoom) return;
+
+        try {
+            const currentTime = this.youtubePlayer.getCurrentTime();
+            const isPlaying = this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING;
+
+            await this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
+                currentTime: currentTime,
+                isPlaying: isPlaying,
+                lastUpdated: Date.now(),
+                updatedBy: this.currentUser.uid
+            });
+
+            this.showToast('Video synchronized!', 'success');
+            this.updateSyncStatus('synced');
+        } catch (error) {
+            this.showToast('Error syncing video: ' + error.message, 'error');
         }
     }
 
@@ -431,7 +414,8 @@ function showAppUIAfterSignIn(user) {
                 playerVars: {
                     autoplay: 0,
                     controls: 1,
-                    enablejsapi: 1
+                    enablejsapi: 1,
+                    modestbranding: 1
                 },
                 events: {
                     onReady: () => resolve(),
@@ -453,56 +437,73 @@ function showAppUIAfterSignIn(user) {
             isPlaying = false;
         }
 
-        // Update database
-        this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
-            isPlaying: isPlaying,
-            currentTime: this.youtubePlayer.getCurrentTime(),
-            updatedBy: this.currentUser.email,
-            updatedAt: Date.now()
-        });
+        // Debounce updates to prevent spam
+        clearTimeout(this.stateUpdateTimeout);
+        this.stateUpdateTimeout = setTimeout(() => {
+            this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
+                isPlaying: isPlaying,
+                currentTime: this.youtubePlayer.getCurrentTime(),
+                lastUpdated: Date.now(),
+                updatedBy: this.currentUser.uid
+            });
+        }, 500);
     }
 
     syncToVideoState(videoState) {
         if (!this.youtubePlayer || !videoState) return;
 
         // Don't sync if this user made the change
-        if (videoState.updatedBy === this.currentUser.email) return;
+        if (videoState.updatedBy === this.currentUser.uid) return;
 
         try {
             if (videoState.videoId) {
                 const currentVideoId = this.youtubePlayer.getVideoData().video_id;
                 if (currentVideoId !== videoState.videoId) {
                     this.youtubePlayer.loadVideoById(videoState.videoId);
+                    return; // Don't sync time on new video load
                 }
             }
 
-            if (videoState.isPlaying) {
-                this.youtubePlayer.seekTo(videoState.currentTime, true);
-                this.youtubePlayer.playVideo();
-            } else {
-                this.youtubePlayer.pauseVideo();
+            const currentTime = this.youtubePlayer.getCurrentTime();
+            const timeDiff = Math.abs(currentTime - videoState.currentTime);
+
+            // Only sync if time difference is significant
+            if (timeDiff > 2) {
                 this.youtubePlayer.seekTo(videoState.currentTime, true);
             }
 
-            document.getElementById('sync-status').textContent = 'Synced';
-            document.getElementById('sync-status').className = 'status synced';
+            if (videoState.isPlaying) {
+                if (this.youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                    this.youtubePlayer.playVideo();
+                }
+            } else {
+                if (this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                    this.youtubePlayer.pauseVideo();
+                }
+            }
+
+            this.updateSyncStatus('synced');
         } catch (error) {
             console.error('Sync error:', error);
+            this.updateSyncStatus('error');
         }
     }
 
+    // Chat System
     async sendMessage() {
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
 
-        if (!message) return;
+        if (!message || !this.currentRoom) return;
 
         try {
             await this.database.ref(`rooms/${this.currentRoom}/messages`).push({
                 userId: this.currentUser.uid,
-                userEmail: this.currentUser.email,
+                userEmail: this.currentUser.email || 'Anonymous',
+                displayName: this.getDisplayName(),
                 message: message,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                isSystem: false
             });
 
             input.value = '';
@@ -512,10 +513,12 @@ function showAppUIAfterSignIn(user) {
     }
 
     async addSystemMessage(message) {
+        if (!this.currentRoom) return;
+
         try {
             await this.database.ref(`rooms/${this.currentRoom}/messages`).push({
                 userId: 'system',
-                userEmail: 'System',
+                displayName: 'System',
                 message: message,
                 timestamp: Date.now(),
                 isSystem: true
@@ -532,7 +535,7 @@ function showAppUIAfterSignIn(user) {
 
         if (message.isSystem) {
             messageDiv.classList.add('system');
-            messageDiv.innerHTML = `<div class="message-content">${message.message}</div>`;
+            messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(message.message)}</div>`;
         } else {
             if (message.userId === this.currentUser.uid) {
                 messageDiv.classList.add('own');
@@ -544,7 +547,7 @@ function showAppUIAfterSignIn(user) {
             });
 
             messageDiv.innerHTML = `
-                <div class="message-header">${message.userEmail} - ${time}</div>
+                <div class="message-header">${this.escapeHtml(message.displayName)} • ${time}</div>
                 <div class="message-content">${this.escapeHtml(message.message)}</div>
             `;
         }
@@ -553,6 +556,7 @@ function showAppUIAfterSignIn(user) {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Video Call System
     async startVideoCall() {
         try {
             this.showLoading('Starting video call...');
@@ -568,7 +572,7 @@ function showAppUIAfterSignIn(user) {
             document.getElementById('video-call-window').classList.remove('hidden');
             this.hideLoading();
 
-            this.addSystemMessage(`${this.currentUser.email} started a video call`);
+            this.addSystemMessage(`${this.getDisplayName()} started a video call`);
             this.showToast('Video call started!', 'success');
 
         } catch (error) {
@@ -584,66 +588,160 @@ function showAppUIAfterSignIn(user) {
         }
 
         document.getElementById('video-call-window').classList.add('hidden');
-        this.addSystemMessage(`${this.currentUser.email} ended the video call`);
+        this.addSystemMessage(`${this.getDisplayName()} ended the video call`);
+        this.showToast('Video call ended', 'info');
     }
 
-    toggleAudio() {
+    toggleMicrophone() {
         if (!this.localStream) return;
 
         const audioTracks = this.localStream.getAudioTracks();
+        const btn = document.getElementById('toggle-mic-btn');
+
         audioTracks.forEach(track => {
             track.enabled = !track.enabled;
         });
 
-        const btn = document.getElementById('toggle-audio');
+        btn.classList.toggle('active', audioTracks[0]?.enabled);
         btn.textContent = audioTracks[0]?.enabled ? '🎤' : '🔇';
     }
 
-    toggleVideo() {
+    toggleCamera() {
         if (!this.localStream) return;
 
         const videoTracks = this.localStream.getVideoTracks();
+        const btn = document.getElementById('toggle-cam-btn');
+
         videoTracks.forEach(track => {
             track.enabled = !track.enabled;
         });
 
-        const btn = document.getElementById('toggle-video');
+        btn.classList.toggle('active', videoTracks[0]?.enabled);
         btn.textContent = videoTracks[0]?.enabled ? '📹' : '📷';
+
+        const localVideo = document.getElementById('local-video');
+        localVideo.style.display = videoTracks[0]?.enabled ? 'block' : 'none';
     }
 
-    syncVideo() {
-        if (!this.youtubePlayer) return;
+    minimizeVideoCall() {
+        const callWindow = document.getElementById('video-call-window');
+        const btn = document.getElementById('minimize-call-btn');
 
-        const currentTime = this.youtubePlayer.getCurrentTime();
-        const isPlaying = this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING;
-
-        this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
-            currentTime: currentTime,
-            isPlaying: isPlaying,
-            updatedBy: this.currentUser.email,
-            updatedAt: Date.now()
-        });
-
-        this.showToast('Video synced!', 'success');
+        callWindow.classList.toggle('minimized');
+        btn.textContent = callWindow.classList.contains('minimized') ? '+' : '−';
     }
 
-    copyRoomId() {
+    // Room Listeners and Updates
+    setupRoomListeners() {
         if (!this.currentRoom) return;
 
-        navigator.clipboard.writeText(this.currentRoom).then(() => {
-            this.showToast('Room ID copied!', 'success');
-        }).catch(() => {
-            this.showToast('Failed to copy room ID', 'error');
+        const roomRef = this.database.ref(`rooms/${this.currentRoom}`);
+
+        // Video state sync
+        roomRef.child('videoState').on('value', (snapshot) => {
+            const videoState = snapshot.val();
+            if (videoState) {
+                this.syncToVideoState(videoState);
+            }
         });
+
+        // New messages
+        roomRef.child('messages').on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            if (message) {
+                this.displayMessage(message);
+            }
+        });
+
+        // User changes
+        roomRef.child('users').on('value', (snapshot) => {
+            const users = snapshot.val() || {};
+            this.updateMembersList(users);
+            this.updateViewerCount(Object.keys(users).length);
+        });
+
+        // Join requests (if creator)
+        if (this.isCreator) {
+            roomRef.child('joinRequests').on('child_added', (snapshot) => {
+                const request = snapshot.val();
+                const userId = snapshot.key;
+
+                if (request && request.status === 'pending') {
+                    this.showJoinRequestModal(userId, request);
+                    this.updatePendingRequestsList();
+                }
+            });
+        }
     }
 
-    backToLobby() {
-        this.currentRoom = null;
-        this.isCreator = false;
-        this.showLandingPage();
+    setupJoinRequestListener() {
+        if (!this.currentRoom) return;
+
+        this.database.ref(`rooms/${this.currentRoom}/joinRequests/${this.currentUser.uid}`)
+            .on('value', (snapshot) => {
+                const request = snapshot.val();
+                if (request) {
+                    if (request.status === 'approved') {
+                        this.showToast('Join request approved!', 'success');
+                        this.showWatchInterface();
+                        this.setupRoomListeners();
+                    } else if (request.status === 'rejected') {
+                        this.showToast('Join request rejected', 'error');
+                        this.showLandingPage();
+                        this.currentRoom = null;
+                    }
+                }
+            });
     }
 
-    // UI Helper Methods
+    async approveJoinRequest() {
+        const modal = document.getElementById('join-request-modal');
+        const userId = modal.dataset.userId;
+        const request = this.pendingRequests.get(userId);
+
+        if (!request) return;
+
+        try {
+            await this.database.ref(`rooms/${this.currentRoom}/users/${userId}`).set({
+                email: request.email,
+                displayName: request.displayName,
+                joinedAt: Date.now(),
+                approved: true,
+                isCreator: false
+            });
+
+            await this.database.ref(`rooms/${this.currentRoom}/joinRequests/${userId}`).update({
+                status: 'approved'
+            });
+
+            this.addSystemMessage(`${request.displayName} joined the room`);
+            this.addToHistory(`${request.displayName} was approved and joined`);
+            this.hideJoinRequestModal();
+            this.showToast('User approved', 'success');
+
+        } catch (error) {
+            this.showToast('Error approving user: ' + error.message, 'error');
+        }
+    }
+
+    async rejectJoinRequest() {
+        const modal = document.getElementById('join-request-modal');
+        const userId = modal.dataset.userId;
+
+        try {
+            await this.database.ref(`rooms/${this.currentRoom}/joinRequests/${userId}`).update({
+                status: 'rejected'
+            });
+
+            this.hideJoinRequestModal();
+            this.showToast('User rejected', 'warning');
+
+        } catch (error) {
+            this.showToast('Error rejecting user: ' + error.message, 'error');
+        }
+    }
+
+    // UI Management
     showAuth() {
         document.getElementById('auth-panel').classList.remove('hidden');
         document.getElementById('app-panel').classList.add('hidden');
@@ -652,7 +750,25 @@ function showAppUIAfterSignIn(user) {
     showApp() {
         document.getElementById('auth-panel').classList.add('hidden');
         document.getElementById('app-panel').classList.remove('hidden');
-        document.getElementById('user-email').textContent = this.currentUser.email;
+
+        // Update user display
+        const displayName = this.getDisplayName();
+        document.getElementById('user-display-name').textContent = displayName;
+
+        // Show/hide creator section
+        const creatorSection = document.getElementById('creator-section');
+        const userRoleBadge = document.getElementById('user-role-badge');
+
+        if (this.isAuthorizedCreator()) {
+            creatorSection.classList.remove('hidden');
+            userRoleBadge.textContent = 'Creator';
+            userRoleBadge.className = 'badge creator';
+        } else {
+            creatorSection.classList.add('hidden');
+            userRoleBadge.textContent = 'Member';
+            userRoleBadge.className = 'badge member';
+        }
+
         this.showLandingPage();
     }
 
@@ -664,25 +780,27 @@ function showAppUIAfterSignIn(user) {
     showWatchInterface() {
         document.getElementById('landing-page').classList.add('hidden');
         document.getElementById('watch-interface').classList.remove('hidden');
-        document.getElementById('room-id-display').textContent = this.currentRoom;
 
-        const roleElement = document.getElementById('user-role');
+        // Update room display
+        document.getElementById('current-room-id').textContent = this.currentRoom;
+
+        // Show creator controls if creator
+        const creatorControls = document.getElementById('creator-controls');
         if (this.isCreator) {
-            roleElement.textContent = 'Creator';
-            roleElement.className = 'badge creator';
-            document.getElementById('creator-controls').classList.remove('hidden');
+            creatorControls.classList.remove('hidden');
+            this.updatePendingRequestsList();
+            this.updateSessionHistory();
         } else {
-            roleElement.textContent = 'Member';
-            roleElement.className = 'badge';
-            document.getElementById('creator-controls').classList.add('hidden');
+            creatorControls.classList.add('hidden');
         }
     }
 
     showJoinRequestModal(userId, request) {
         const modal = document.getElementById('join-request-modal');
         modal.dataset.userId = userId;
-        modal.dataset.userEmail = request.email;
-        document.getElementById('requester-email').textContent = request.email;
+        this.pendingRequests.set(userId, request);
+
+        document.getElementById('requester-name').textContent = request.displayName || request.email;
         modal.classList.remove('hidden');
     }
 
@@ -690,18 +808,221 @@ function showAppUIAfterSignIn(user) {
         document.getElementById('join-request-modal').classList.add('hidden');
     }
 
-    updateUsersList(users) {
-        const usersList = document.getElementById('room-users');
-        if (!usersList) return;
+    updateMembersList(users) {
+        const membersList = document.getElementById('members-list');
+        membersList.innerHTML = '';
 
-        usersList.innerHTML = '<h4>Room Members:</h4>';
         Object.entries(users).forEach(([userId, userData]) => {
             if (userData.approved) {
-                const userDiv = document.createElement('div');
-                userDiv.textContent = userData.email;
-                usersList.appendChild(userDiv);
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'member-item';
+                memberDiv.innerHTML = `
+                    <div class="member-info">
+                        <div class="member-name">${this.escapeHtml(userData.displayName || userData.email)}</div>
+                        <div class="member-role">${userData.isCreator ? 'Creator' : 'Member'}</div>
+                    </div>
+                `;
+                membersList.appendChild(memberDiv);
             }
         });
+    }
+
+    updateViewerCount(count) {
+        document.getElementById('viewers-count').textContent = `👥 ${count} viewer${count !== 1 ? 's' : ''}`;
+    }
+
+    updatePendingRequestsList() {
+        if (!this.isCreator) return;
+
+        const requestsList = document.getElementById('pending-requests-list');
+        requestsList.innerHTML = '';
+
+        this.pendingRequests.forEach((request, userId) => {
+            if (request.status === 'pending') {
+                const requestDiv = document.createElement('div');
+                requestDiv.className = 'request-item';
+                requestDiv.innerHTML = `
+                    <span>${this.escapeHtml(request.displayName || request.email)}</span>
+                    <div class="request-actions">
+                        <button class="small primary" onclick="app.approveSpecificRequest('${userId}')">Approve</button>
+                        <button class="small danger" onclick="app.rejectSpecificRequest('${userId}')">Reject</button>
+                    </div>
+                `;
+                requestsList.appendChild(requestDiv);
+            }
+        });
+    }
+
+    updateSessionHistory() {
+        if (!this.isCreator) return;
+
+        const historyLog = document.getElementById('session-history');
+        historyLog.innerHTML = '';
+
+        this.sessionHistory.slice(-10).forEach(entry => {
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.textContent = `${new Date(entry.timestamp).toLocaleTimeString()} - ${entry.message}`;
+            historyLog.appendChild(historyItem);
+        });
+    }
+
+    updateSyncStatus(status) {
+        const indicator = document.getElementById('sync-status');
+        if (!indicator) return;
+
+        const statusMap = {
+            'ready': { text: 'Ready', class: 'status status-info' },
+            'syncing': { text: 'Syncing...', class: 'status status-warning' },
+            'synced': { text: 'Synced', class: 'status status-success' },
+            'error': { text: 'Error', class: 'status status-error' }
+        };
+
+        const statusInfo = statusMap[status] || statusMap.ready;
+        indicator.textContent = statusInfo.text;
+        indicator.className = statusInfo.class;
+    }
+
+    // Utility Methods
+    copyRoomId() {
+        if (!this.currentRoom) return;
+
+        navigator.clipboard.writeText(this.currentRoom).then(() => {
+            this.showToast('Room ID copied!', 'success');
+        }).catch(() => {
+            this.showToast('Failed to copy room ID', 'error');
+        });
+    }
+
+    shareRoom() {
+        if (!this.currentRoom) return;
+
+        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.currentRoom}`;
+
+        if (navigator.share) {
+            navigator.share({
+                title: 'Join my WatchTogether room!',
+                text: `Join me for a movie night! Room ID: ${this.currentRoom}`,
+                url: shareUrl
+            });
+        } else {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                this.showToast('Share link copied!', 'success');
+            }).catch(() => {
+                this.showToast('Room ID: ' + this.currentRoom, 'info');
+            });
+        }
+    }
+
+    addToHistory(message) {
+        this.sessionHistory.push({
+            message: message,
+            timestamp: Date.now()
+        });
+
+        if (this.isCreator) {
+            this.updateSessionHistory();
+
+            // Also save to Firebase for persistence
+            this.database.ref(`rooms/${this.currentRoom}/history`).push({
+                message: message,
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    isAuthorizedCreator() {
+        // Check multiple creator authorization methods
+        if (!this.currentUser) return false;
+
+        // Method 1: Creator code
+        if (this.currentUser.isCreatorByCode) return true;
+
+        // Method 2: Email authorization (replace with your email)
+        const AUTHORIZED_CREATOR_EMAILS = ['keshavkuma0634@gmail.com'];
+        if (this.currentUser.email && AUTHORIZED_CREATOR_EMAILS.includes(this.currentUser.email)) {
+            return true;
+        }
+
+        // Method 3: UID authorization (for anonymous users)
+        const AUTHORIZED_CREATOR_UIDS = []; // Add your test UIDs here
+        if (AUTHORIZED_CREATOR_UIDS.includes(this.currentUser.uid)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    getDisplayName() {
+        if (!this.currentUser) return 'Anonymous';
+
+        if (this.currentUser.isCreatorByCode) {
+            return `Creator (${this.currentUser.creatorCode})`;
+        }
+
+        if (this.currentUser.email && this.currentUser.email !== 'Anonymous') {
+            return this.currentUser.email;
+        }
+
+        return `Guest-${this.currentUser.uid.slice(0, 6)}`;
+    }
+
+    generateRoomId() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    extractVideoId(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    makeElementDraggable(element) {
+        if (!element) return;
+
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        const header = element.querySelector('.call-header');
+
+        if (header) {
+            header.style.cursor = 'move';
+            header.onmousedown = (e) => {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            };
+        }
+
+        function elementDrag(e) {
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            const winHeight = window.innerHeight;
+            const winWidth = window.innerWidth;
+
+            element.style.top = Math.max(0, Math.min(element.offsetTop - pos2, winHeight - element.offsetHeight)) + "px";
+            element.style.left = Math.max(0, Math.min(element.offsetLeft - pos1, winWidth - element.offsetWidth)) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
     }
 
     showLoading(message) {
@@ -728,35 +1049,39 @@ function showAppUIAfterSignIn(user) {
         }, 5000);
     }
 
-    // Utility Methods
-    generateRoomId() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let result = '';
-        for (let i = 0; i < 6; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
+    // Global method access for onclick handlers
+    approveSpecificRequest(userId) {
+        const modal = document.getElementById('join-request-modal');
+        modal.dataset.userId = userId;
+        this.approveJoinRequest();
     }
 
-    extractVideoId(url) {
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-        const match = url.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null;
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    rejectSpecificRequest(userId) {
+        const modal = document.getElementById('join-request-modal');
+        modal.dataset.userId = userId;
+        this.rejectJoinRequest();
     }
 }
 
-// Initialize the app when DOM is loaded
+// Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
-    window.watchTogetherApp = new WatchTogetherApp();
+    window.app = new WatchTogetherApp();
+
+    // Check for room parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('room')) {
+        const roomId = urlParams.get('room').toUpperCase();
+        // Auto-fill room ID when user reaches landing page
+        setTimeout(() => {
+            const roomInput = document.getElementById('room-id-input');
+            if (roomInput) {
+                roomInput.value = roomId;
+            }
+        }, 1000);
+    }
 });
 
-// Initialize YouTube API
+// YouTube API ready callback
 window.onYouTubeIframeAPIReady = () => {
     console.log('YouTube API ready');
 };
