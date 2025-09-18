@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WatchTogether - Synchronized Movie Watching</title>
+    <title>WatchTogether - Secure Synchronized Movie Watching</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-    <!-- YouTube API -->
     <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
@@ -22,132 +20,211 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Email Authentication Panel -->
+    <!-- Authentication Panel -->
     <div id="auth-panel">
         <div class="card">
             <h1>🎬 WatchTogether</h1>
-            <p>Watch movies together, anywhere!</p>
-            <div class="input-group">
-                <input type="email" id="email-input" placeholder="Enter your email" required>
-                <button id="send-link-btn">Send Magic Link</button>
+            <p class="subtitle">Watch movies together, anywhere!</p>
+
+            <!-- Email Authentication (when quota available) -->
+            <div id="email-auth-section">
+                <div class="input-group">
+                    <input type="email" id="email-input" placeholder="Enter your email" required>
+                    <button id="send-magic-link-btn">Send Magic Link</button>
+                </div>
+                <p class="note">We'll send you a secure link to sign in</p>
+                <div class="divider">OR</div>
             </div>
-            <p class="note">We'll send you a secure link to sign in</p>
+
+            <!-- Anonymous Sign-In (for testing/quota issues) -->
+            <div id="anonymous-auth-section">
+                <button id="anonymous-signin-btn" class="secondary">Sign In as Guest</button>
+                <p class="note">Quick sign-in for testing (no email required)</p>
+                <div class="divider">OR</div>
+            </div>
+
+            <!-- Creator Code Entry -->
+            <div id="creator-code-section">
+                <div class="input-group">
+                    <input type="text" id="creator-code-input" placeholder="Enter Creator Code" maxlength="20">
+                    <button id="creator-code-btn">Sign In as Creator</button>
+                </div>
+                <p class="note">For pre-authorized creators only</p>
+            </div>
         </div>
     </div>
 
     <!-- Main App Panel -->
     <div id="app-panel" class="hidden">
+        <!-- User Info Bar -->
+        <div class="user-bar">
+            <span id="user-info">Welcome, <span id="user-display-name"></span>!</span>
+            <div class="user-controls">
+                <span id="user-role-badge" class="badge"></span>
+                <button id="sign-out-btn" class="small">Sign Out</button>
+            </div>
+        </div>
+
         <!-- Landing Page -->
         <div id="landing-page">
             <div class="card">
-                <h1>🎬 WatchTogether</h1>
-                <p class="user-info">Welcome, <span id="user-email"></span>!</p>
+                <h2>Room Management</h2>
 
-                <div class="section">
-                    <h3>Create New Room</h3>
-                    <div class="input-group">
-                        <label>Max Users:</label>
-                        <input type="number" id="max-users" min="2" max="10" value="2">
+                <!-- Creator Only Section -->
+                <div id="creator-section" class="hidden">
+                    <div class="section">
+                        <h3>🎪 Create New Room</h3>
+                        <div class="input-group">
+                            <label>Max Users:</label>
+                            <input type="number" id="max-users-input" min="2" max="20" value="4">
+                        </div>
+                        <button id="create-room-btn" class="primary">Create Room</button>
                     </div>
-                    <button id="create-room-btn" class="primary">Create Room</button>
+                    <div class="divider"></div>
                 </div>
 
-                <div class="divider">OR</div>
-
+                <!-- Join Room Section (For Everyone) -->
                 <div class="section">
-                    <h3>Join Existing Room</h3>
+                    <h3>🔗 Join Existing Room</h3>
                     <div class="input-group">
-                        <input type="text" id="room-id-input" placeholder="Enter Room ID">
+                        <input type="text" id="room-id-input" placeholder="Enter Room ID" maxlength="10">
                         <button id="join-room-btn" class="secondary">Join Room</button>
                     </div>
                 </div>
 
-                <button id="sign-out-btn" class="small">Sign Out</button>
+                <!-- My Rooms History -->
+                <div id="room-history-section" class="hidden">
+                    <h3>📚 Your Recent Rooms</h3>
+                    <div id="room-history-list"></div>
+                </div>
             </div>
         </div>
 
         <!-- Watch Interface -->
         <div id="watch-interface" class="hidden">
-            <div class="header-bar">
+            <!-- Room Header -->
+            <div class="room-header">
                 <div class="room-info">
-                    <span>Room: <strong id="room-id-display"></strong></span>
-                    <button id="copy-room-btn" class="small">Copy</button>
-                    <span id="user-role" class="badge"></span>
+                    <span class="room-title">Room: <strong id="current-room-id"></strong></span>
+                    <button id="copy-room-id-btn" class="small">📋 Copy ID</button>
+                    <button id="share-room-btn" class="small">🔗 Share Link</button>
                 </div>
-                <button id="back-to-lobby-btn" class="small">Back to Lobby</button>
+                <div class="room-controls">
+                    <span id="connection-status" class="status status-info">Connected</span>
+                    <button id="leave-room-btn" class="small danger">🚪 Leave Room</button>
+                </div>
             </div>
 
             <div class="main-content">
                 <!-- Video Section -->
                 <div class="video-section">
                     <div id="video-container">
-                        <div id="video-placeholder">
-                            <p>Load a YouTube video to start watching together!</p>
+                        <div id="video-placeholder" class="video-placeholder">
+                            <div class="placeholder-content">
+                                <h3>🎥 Ready to Watch Together!</h3>
+                                <p>Paste a YouTube URL below to start the party</p>
+                            </div>
                         </div>
                         <div id="youtube-player" style="display: none;"></div>
                     </div>
+
                     <div class="video-controls">
                         <div class="input-group">
-                            <input type="url" id="video-url-input" placeholder="Paste YouTube URL here">
-                            <button id="load-video-btn">Load Video</button>
+                            <input type="url" id="video-url-input" placeholder="Paste YouTube URL here...">
+                            <button id="load-video-btn">🎬 Load Video</button>
                         </div>
-                        <div class="control-buttons">
-                            <button id="sync-btn" class="small">Sync Video</button>
-                            <span id="sync-status" class="status">Ready</span>
+                        <div class="video-status">
+                            <button id="sync-video-btn" class="small">🔄 Sync</button>
+                            <span id="sync-status" class="status status-info">Ready</span>
+                            <span id="viewers-count" class="viewers">👥 0 viewers</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Chat Section -->
-                <div class="chat-section">
-                    <div class="chat-header">
-                        <h3>Chat</h3>
-                        <button id="start-call-btn" class="call-btn">📞 Video Call</button>
+                <!-- Chat & Controls Section -->
+                <div class="sidebar">
+                    <!-- Chat -->
+                    <div class="chat-section">
+                        <div class="chat-header">
+                            <h3>💬 Party Chat</h3>
+                            <button id="video-call-btn" class="call-btn">📞 Video Call</button>
+                        </div>
+                        <div id="chat-messages" class="chat-messages"></div>
+                        <div class="chat-input-area">
+                            <div class="input-group">
+                                <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500">
+                                <button id="send-chat-btn">Send</button>
+                            </div>
+                        </div>
                     </div>
-                    <div id="chat-messages"></div>
-                    <div class="chat-input-group">
-                        <input type="text" id="chat-input" placeholder="Type a message...">
-                        <button id="send-chat-btn">Send</button>
+
+                    <!-- Room Members -->
+                    <div class="members-section">
+                        <h3>👥 Room Members</h3>
+                        <div id="members-list"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Creator Controls -->
-            <div id="creator-controls" class="hidden">
+            <div id="creator-controls" class="creator-controls hidden">
                 <div class="card">
-                    <h3>Creator Controls</h3>
-                    <div id="pending-requests"></div>
-                    <div id="room-users"></div>
-                </div>
-            </div>
+                    <h3>🎪 Creator Controls</h3>
 
-            <!-- Join Request Modal -->
-            <div id="join-request-modal" class="modal hidden">
-                <div class="modal-content">
-                    <h3>New Join Request</h3>
-                    <p><strong id="requester-email"></strong> wants to join your room.</p>
-                    <div class="modal-buttons">
-                        <button id="approve-btn" class="primary">Approve</button>
-                        <button id="reject-btn" class="secondary">Reject</button>
+                    <!-- Pending Join Requests -->
+                    <div class="control-section">
+                        <h4>📋 Pending Join Requests</h4>
+                        <div id="pending-requests-list"></div>
+                    </div>
+
+                    <!-- Room Settings -->
+                    <div class="control-section">
+                        <h4>⚙️ Room Settings</h4>
+                        <div class="settings-row">
+                            <label>Max Users:</label>
+                            <input type="number" id="room-max-users" min="2" max="20" disabled>
+                        </div>
+                    </div>
+
+                    <!-- Session History -->
+                    <div class="control-section">
+                        <h4>📜 Session History</h4>
+                        <div id="session-history" class="history-log"></div>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Video Call Window -->
-            <div id="video-call-window" class="hidden">
-                <div class="call-header">
-                    <span>Video Call</span>
-                    <div class="call-controls">
-                        <button id="toggle-audio">🎤</button>
-                        <button id="toggle-video">📹</button>
-                        <button id="end-call">❌</button>
-                    </div>
-                </div>
-                <div class="video-streams">
-                    <video id="local-video" autoplay muted></video>
-                    <video id="remote-video" autoplay></video>
-                </div>
+    <!-- Join Request Modal -->
+    <div id="join-request-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>New Join Request</h3>
+            <p><strong id="requester-name"></strong> wants to join your room.</p>
+            <div class="modal-actions">
+                <button id="approve-request-btn" class="primary">✅ Approve</button>
+                <button id="reject-request-btn" class="danger">❌ Reject</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Video Call Window -->
+    <div id="video-call-window" class="video-call-window hidden">
+        <div class="call-header">
+            <span class="call-title">📞 Video Call</span>
+            <div class="call-header-controls">
+                <button id="minimize-call-btn" class="header-btn">−</button>
+                <button id="close-call-btn" class="header-btn">✕</button>
+            </div>
+        </div>
+        <div class="video-streams">
+            <video id="local-video" class="local-video" autoplay muted playsinline></video>
+            <video id="remote-video" class="remote-video" autoplay playsinline></video>
+        </div>
+        <div class="call-controls">
+            <button id="toggle-mic-btn" class="control-btn active">🎤</button>
+            <button id="toggle-cam-btn" class="control-btn active">📹</button>
+            <button id="end-call-btn" class="control-btn danger">📞</button>
         </div>
     </div>
 
