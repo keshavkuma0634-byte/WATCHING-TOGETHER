@@ -1,4 +1,4 @@
-// WatchTogether App - Complete Secure Implementation
+// WatchTogether App - Complete & Fixed Implementation
 class WatchTogetherApp {
     constructor() {
         // Core state
@@ -12,6 +12,12 @@ class WatchTogetherApp {
         this.roomMembers = new Map();
         this.pendingRequests = new Map();
         this.sessionHistory = [];
+
+        // Ensure Firebase is loaded before initializing
+        if (typeof firebase === 'undefined') {
+            console.error('Firebase not loaded! Make sure Firebase scripts are included.');
+            return;
+        }
 
         // Initialize Firebase and setup
         this.initializeFirebase();
@@ -36,51 +42,71 @@ class WatchTogetherApp {
 
         this.auth = firebase.auth();
         this.database = firebase.database();
+
+        console.log('🔥 Firebase initialized successfully');
     }
 
     setupEventListeners() {
+        // Wait for DOM to be ready
+        const addEventListenerSafe = (id, event, handler) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener(event, handler);
+            } else {
+                console.warn(`Element ${id} not found for event listener`);
+            }
+        };
+
         // Auth events
-        document.getElementById('send-magic-link-btn').addEventListener('click', () => this.sendMagicLink());
-        document.getElementById('anonymous-signin-btn').addEventListener('click', () => this.signInAnonymously());
-        document.getElementById('creator-code-btn').addEventListener('click', () => this.signInWithCreatorCode());
-        document.getElementById('sign-out-btn').addEventListener('click', () => this.signOut());
+        addEventListenerSafe('send-magic-link-btn', 'click', () => this.sendMagicLink());
+        addEventListenerSafe('anonymous-signin-btn', 'click', () => this.signInAnonymously());
+        addEventListenerSafe('creator-code-btn', 'click', () => this.signInWithCreatorCode());
+        addEventListenerSafe('sign-out-btn', 'click', () => this.signOut());
 
         // Room events
-        document.getElementById('create-room-btn').addEventListener('click', () => this.createRoom());
-        document.getElementById('join-room-btn').addEventListener('click', () => this.joinRoom());
-        document.getElementById('leave-room-btn').addEventListener('click', () => this.leaveRoom());
+        addEventListenerSafe('create-room-btn', 'click', () => this.createRoom());
+        addEventListenerSafe('join-room-btn', 'click', () => this.joinRoom());
+        addEventListenerSafe('leave-room-btn', 'click', () => this.leaveRoom());
 
         // Room controls
-        document.getElementById('copy-room-id-btn').addEventListener('click', () => this.copyRoomId());
-        document.getElementById('share-room-btn').addEventListener('click', () => this.shareRoom());
+        addEventListenerSafe('copy-room-id-btn', 'click', () => this.copyRoomId());
+        addEventListenerSafe('share-room-btn', 'click', () => this.shareRoom());
 
         // Video events
-        document.getElementById('load-video-btn').addEventListener('click', () => this.loadVideo());
-        document.getElementById('sync-video-btn').addEventListener('click', () => this.syncVideo());
+        addEventListenerSafe('load-video-btn', 'click', () => this.loadVideo());
+        addEventListenerSafe('sync-video-btn', 'click', () => this.syncVideo());
 
         // Chat events
-        document.getElementById('send-chat-btn').addEventListener('click', () => this.sendMessage());
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
+        addEventListenerSafe('send-chat-btn', 'click', () => this.sendMessage());
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+        }
 
         // Video call events
-        document.getElementById('video-call-btn').addEventListener('click', () => this.startVideoCall());
-        document.getElementById('end-call-btn').addEventListener('click', () => this.endVideoCall());
-        document.getElementById('toggle-mic-btn').addEventListener('click', () => this.toggleMicrophone());
-        document.getElementById('toggle-cam-btn').addEventListener('click', () => this.toggleCamera());
-        document.getElementById('close-call-btn').addEventListener('click', () => this.endVideoCall());
-        document.getElementById('minimize-call-btn').addEventListener('click', () => this.minimizeVideoCall());
+        addEventListenerSafe('video-call-btn', 'click', () => this.startVideoCall());
+        addEventListenerSafe('end-call-btn', 'click', () => this.endVideoCall());
+        addEventListenerSafe('toggle-mic-btn', 'click', () => this.toggleMicrophone());
+        addEventListenerSafe('toggle-cam-btn', 'click', () => this.toggleCamera());
+        addEventListenerSafe('close-call-btn', 'click', () => this.endVideoCall());
+        addEventListenerSafe('minimize-call-btn', 'click', () => this.minimizeVideoCall());
 
         // Join request modal events
-        document.getElementById('approve-request-btn').addEventListener('click', () => this.approveJoinRequest());
-        document.getElementById('reject-request-btn').addEventListener('click', () => this.rejectJoinRequest());
+        addEventListenerSafe('approve-request-btn', 'click', () => this.approveJoinRequest());
+        addEventListenerSafe('reject-request-btn', 'click', () => this.rejectJoinRequest());
 
         // Make video call window draggable
-        this.makeElementDraggable(document.getElementById('video-call-window'));
+        const callWindow = document.getElementById('video-call-window');
+        if (callWindow) {
+            this.makeElementDraggable(callWindow);
+        }
+
+        console.log('✅ Event listeners setup complete');
     }
 
     // Authentication Methods
@@ -95,10 +121,13 @@ class WatchTogetherApp {
 
         // Check current auth state
         this.auth.onAuthStateChanged((user) => {
+            console.log('Auth state changed:', user ? user.uid : 'No user');
             this.hideLoading();
+
             if (user) {
                 this.currentUser = user;
                 this.showApp();
+                this.showToast(`Welcome back, ${this.getDisplayName()}!`, 'success');
             } else {
                 this.showAuth();
             }
@@ -125,6 +154,7 @@ class WatchTogetherApp {
             this.showToast('Magic link sent! Check your email.', 'success');
         } catch (error) {
             this.hideLoading();
+            console.error('Magic link error:', error);
             if (error.code === 'auth/quota-exceeded') {
                 this.showToast('Email quota exceeded. Try anonymous sign-in or wait 24 hours.', 'warning');
             } else {
@@ -148,6 +178,7 @@ class WatchTogetherApp {
             this.showToast('Successfully signed in!', 'success');
         } catch (error) {
             this.hideLoading();
+            console.error('Magic link sign-in error:', error);
             this.showToast('Sign in error: ' + error.message, 'error');
         }
     }
@@ -160,6 +191,7 @@ class WatchTogetherApp {
             this.showToast('Signed in as guest!', 'success');
         } catch (error) {
             this.hideLoading();
+            console.error('Anonymous sign-in error:', error);
             this.showToast('Error: ' + error.message, 'error');
         }
     }
@@ -171,20 +203,21 @@ class WatchTogetherApp {
             return;
         }
 
-        // For demo - in production, verify this server-side
+        // Valid creator codes
         const VALID_CREATOR_CODES = ['CREATOR2024', 'ADMIN123', 'MASTER001'];
 
         if (VALID_CREATOR_CODES.includes(code.toUpperCase())) {
             try {
                 this.showLoading('Verifying creator code...');
                 await this.auth.signInAnonymously();
-                // Mark as creator
+                // Mark as creator - this is client-side only for UI
                 this.currentUser.isCreatorByCode = true;
                 this.currentUser.creatorCode = code.toUpperCase();
                 this.hideLoading();
                 this.showToast('Signed in as creator!', 'success');
             } catch (error) {
                 this.hideLoading();
+                console.error('Creator code sign-in error:', error);
                 this.showToast('Error: ' + error.message, 'error');
             }
         } else {
@@ -193,77 +226,117 @@ class WatchTogetherApp {
     }
 
     signOut() {
+        // Clean up before signing out
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+        }
+
         this.auth.signOut();
         this.currentUser = null;
         this.currentRoom = null;
         this.isCreator = false;
+        this.roomMembers.clear();
+        this.pendingRequests.clear();
+
         this.showAuth();
-        this.showToast('Signed out', 'info');
+        this.showToast('Signed out successfully', 'info');
     }
 
-    // Room Management
-  async createRoom() {
-    if (!this.isAuthorizedCreator()) {
-        this.showToast('Only authorized creators can create rooms', 'error');
-        return;
-    }
-    const maxUsers = parseInt(document.getElementById('max-users-input').value) || 4;
-    const roomId = this.generateRoomId();
-    const user = firebase.auth().currentUser;
-    if (!user) {
-        this.showToast('User not authenticated!', 'error');
-        return;
-    }
-    try {
-        this.showLoading('Creating room...');
-        const roomData = {
-            id: roomId,
-            creator: user.uid,              // Use freshly fetched Firebase Auth user
-            creatorEmail: user.email || 'Anonymous Creator',
-            maxUsers: maxUsers,
-            createdAt: Date.now(),
-            users: {
-                [user.uid]: {
-                    email: user.email || 'Anonymous',
-                    displayName: this.getDisplayName(),
-                    joinedAt: Date.now(),
-                    approved: true,
-                    isCreator: true
-                }
-            },
-            joinRequests: {},
-            videoState: {
-                videoId: null,
-                isPlaying: false,
-                currentTime: 0,
-                lastUpdated: Date.now()
-            },
-            messages: {},
-            history: {}
-        };
-        console.log('Attempting to create room with data:', roomData);
-        console.log('Authenticated user UID:', user.uid);
-        console.log('Room creator UID in data:', roomData.creator);
-        await this.database.ref(`rooms/${roomId}`).set(roomData);
-        await this.database.ref(`rooms/${roomId}`).set(roomData);
-        this.currentRoom = roomId;
-        this.isCreator = true;
-        this.hideLoading();
-        this.showWatchInterface();
-        this.setupRoomListeners();
-        this.showToast(`Room ${roomId} created!`, 'success');
-        this.addToHistory(`Room created by ${this.getDisplayName()}`);
-    } catch (error) {
-        this.hideLoading();
-        this.showToast('Error creating room: ' + error.message, 'error');
-    }
-}
+    // Room Management - FIXED VERSION
+    async createRoom() {
+        console.log('🎪 Creating room...');
 
+        // Check if user is authorized to create rooms
+        if (!this.isAuthorizedCreator()) {
+            this.showToast('Only authorized creators can create rooms', 'error');
+            return;
+        }
+
+        const maxUsers = parseInt(document.getElementById('max-users-input').value) || 4;
+        const roomId = this.generateRoomId();
+
+        // Get current user - CRITICAL: Use fresh Firebase Auth user
+        const user = this.auth.currentUser;
+        if (!user) {
+            this.showToast('User not authenticated!', 'error');
+            return;
+        }
+
+        console.log('👤 Current user UID:', user.uid);
+        console.log('📧 Current user email:', user.email);
+
+        try {
+            this.showLoading('Creating room...');
+
+            // Room data structure - EXACTLY what Firebase expects
+            const roomData = {
+                id: roomId,
+                creator: user.uid,  // CRITICAL: Must match auth.uid in rules
+                creatorEmail: user.email || 'Anonymous Creator',
+                maxUsers: maxUsers,
+                createdAt: Date.now(),
+                users: {
+                    [user.uid]: {
+                        email: user.email || 'Anonymous',
+                        displayName: this.getDisplayName(),
+                        joinedAt: Date.now(),
+                        approved: true,
+                        isCreator: true
+                    }
+                },
+                joinRequests: {},
+                videoState: {
+                    videoId: null,
+                    isPlaying: false,
+                    currentTime: 0,
+                    lastUpdated: Date.now()
+                },
+                messages: {},
+                history: {}
+            };
+
+            console.log('📝 Room data to write:', roomData);
+            console.log('🔑 Creator UID in data:', roomData.creator);
+
+            // Write to Firebase Database
+            await this.database.ref(`rooms/${roomId}`).set(roomData);
+
+            // Success! Setup local state
+            this.currentRoom = roomId;
+            this.isCreator = true;
+
+            this.hideLoading();
+            this.showWatchInterface();
+            this.setupRoomListeners();
+
+            this.showToast(`🎉 Room ${roomId} created successfully!`, 'success');
+            this.addSystemMessage(`Room ${roomId} created by ${this.getDisplayName()}`);
+
+            console.log('✅ Room created successfully:', roomId);
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('❌ Room creation error:', error);
+
+            // Detailed error message
+            if (error.code === 'PERMISSION_DENIED') {
+                this.showToast('Permission denied. Check your authentication and try again.', 'error');
+                console.error('PERMISSION_DENIED: Likely auth.uid !== creator field or rules misconfigured');
+            } else {
+                this.showToast('Error creating room: ' + error.message, 'error');
+            }
+        }
+    }
 
     async joinRoom() {
         const roomId = document.getElementById('room-id-input').value.trim().toUpperCase();
         if (!roomId) {
             this.showToast('Please enter a room ID', 'error');
+            return;
+        }
+
+        if (!this.currentUser) {
+            this.showToast('Please sign in first', 'error');
             return;
         }
 
@@ -314,25 +387,29 @@ class WatchTogetherApp {
 
         } catch (error) {
             this.hideLoading();
+            console.error('Join room error:', error);
             this.showToast('Error joining room: ' + error.message, 'error');
         }
     }
 
     async leaveRoom() {
-        if (!this.currentRoom) return;
+        if (!this.currentRoom || !this.currentUser) return;
 
         try {
             // Remove user from room
             await this.database.ref(`rooms/${this.currentRoom}/users/${this.currentUser.uid}`).remove();
 
-            // Add to history
-            this.addToHistory(`${this.getDisplayName()} left the room`);
+            // Add to history if creator
+            if (this.isCreator) {
+                this.addSystemMessage(`${this.getDisplayName()} left the room`);
+            }
 
             this.currentRoom = null;
             this.isCreator = false;
             this.showLandingPage();
             this.showToast('Left the room', 'info');
         } catch (error) {
+            console.error('Leave room error:', error);
             this.showToast('Error leaving room: ' + error.message, 'error');
         }
     }
@@ -351,6 +428,11 @@ class WatchTogetherApp {
             return;
         }
 
+        if (!this.currentRoom || !this.currentUser) {
+            this.showToast('Please join a room first', 'error');
+            return;
+        }
+
         try {
             this.showLoading('Loading video...');
 
@@ -359,9 +441,10 @@ class WatchTogetherApp {
                 await this.initializeYouTubePlayer();
             }
 
-            // Load video and update database
+            // Load video
             this.youtubePlayer.loadVideoById(videoId);
 
+            // Update database
             await this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
                 videoId: videoId,
                 isPlaying: false,
@@ -371,20 +454,24 @@ class WatchTogetherApp {
             });
 
             this.hideLoading();
-            this.showToast('Video loaded!', 'success');
-            this.addToHistory(`${this.getDisplayName()} loaded a new video`);
+            this.showToast('Video loaded successfully!', 'success');
             this.addSystemMessage(`${this.getDisplayName()} loaded a new video`);
 
+            // Clear input
             document.getElementById('video-url-input').value = '';
 
         } catch (error) {
             this.hideLoading();
+            console.error('Load video error:', error);
             this.showToast('Error loading video: ' + error.message, 'error');
         }
     }
 
     async syncVideo() {
-        if (!this.youtubePlayer || !this.currentRoom) return;
+        if (!this.youtubePlayer || !this.currentRoom || !this.currentUser) {
+            this.showToast('Video player not ready', 'error');
+            return;
+        }
 
         try {
             const currentTime = this.youtubePlayer.getCurrentTime();
@@ -400,37 +487,60 @@ class WatchTogetherApp {
             this.showToast('Video synchronized!', 'success');
             this.updateSyncStatus('synced');
         } catch (error) {
+            console.error('Sync video error:', error);
             this.showToast('Error syncing video: ' + error.message, 'error');
         }
     }
 
     initializeYouTubePlayer() {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
+            if (typeof YT === 'undefined') {
+                reject(new Error('YouTube API not loaded'));
+                return;
+            }
+
             const playerDiv = document.getElementById('youtube-player');
             const placeholder = document.getElementById('video-placeholder');
+
+            if (!playerDiv) {
+                reject(new Error('YouTube player element not found'));
+                return;
+            }
 
             placeholder.style.display = 'none';
             playerDiv.style.display = 'block';
 
-            this.youtubePlayer = new YT.Player('youtube-player', {
-                height: '100%',
-                width: '100%',
-                playerVars: {
-                    autoplay: 0,
-                    controls: 1,
-                    enablejsapi: 1,
-                    modestbranding: 1
-                },
-                events: {
-                    onReady: () => resolve(),
-                    onStateChange: (event) => this.onPlayerStateChange(event)
-                }
-            });
+            try {
+                this.youtubePlayer = new YT.Player('youtube-player', {
+                    height: '100%',
+                    width: '100%',
+                    playerVars: {
+                        autoplay: 0,
+                        controls: 1,
+                        enablejsapi: 1,
+                        modestbranding: 1,
+                        rel: 0
+                    },
+                    events: {
+                        onReady: () => {
+                            console.log('YouTube player ready');
+                            resolve();
+                        },
+                        onStateChange: (event) => this.onPlayerStateChange(event),
+                        onError: (event) => {
+                            console.error('YouTube player error:', event);
+                            this.showToast('Video player error', 'error');
+                        }
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
         });
     }
 
     onPlayerStateChange(event) {
-        if (!this.currentRoom) return;
+        if (!this.currentRoom || !this.currentUser) return;
 
         const state = event.data;
         let isPlaying = false;
@@ -444,13 +554,15 @@ class WatchTogetherApp {
         // Debounce updates to prevent spam
         clearTimeout(this.stateUpdateTimeout);
         this.stateUpdateTimeout = setTimeout(() => {
-            this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
-                isPlaying: isPlaying,
-                currentTime: this.youtubePlayer.getCurrentTime(),
-                lastUpdated: Date.now(),
-                updatedBy: this.currentUser.uid
-            });
-        }, 500);
+            if (this.currentRoom && this.currentUser) {
+                this.database.ref(`rooms/${this.currentRoom}/videoState`).update({
+                    isPlaying: isPlaying,
+                    currentTime: this.youtubePlayer.getCurrentTime(),
+                    lastUpdated: Date.now(),
+                    updatedBy: this.currentUser.uid
+                });
+            }
+        }, 1000);
     }
 
     syncToVideoState(videoState) {
@@ -461,8 +573,8 @@ class WatchTogetherApp {
 
         try {
             if (videoState.videoId) {
-                const currentVideoId = this.youtubePlayer.getVideoData().video_id;
-                if (currentVideoId !== videoState.videoId) {
+                const currentVideoData = this.youtubePlayer.getVideoData();
+                if (currentVideoData && currentVideoData.video_id !== videoState.videoId) {
                     this.youtubePlayer.loadVideoById(videoState.videoId);
                     return; // Don't sync time on new video load
                 }
@@ -472,10 +584,11 @@ class WatchTogetherApp {
             const timeDiff = Math.abs(currentTime - videoState.currentTime);
 
             // Only sync if time difference is significant
-            if (timeDiff > 2) {
+            if (timeDiff > 3) {
                 this.youtubePlayer.seekTo(videoState.currentTime, true);
             }
 
+            // Sync play state
             if (videoState.isPlaying) {
                 if (this.youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
                     this.youtubePlayer.playVideo();
@@ -498,7 +611,7 @@ class WatchTogetherApp {
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
 
-        if (!message || !this.currentRoom) return;
+        if (!message || !this.currentRoom || !this.currentUser) return;
 
         try {
             await this.database.ref(`rooms/${this.currentRoom}/messages`).push({
@@ -512,6 +625,7 @@ class WatchTogetherApp {
 
             input.value = '';
         } catch (error) {
+            console.error('Send message error:', error);
             this.showToast('Error sending message: ' + error.message, 'error');
         }
     }
@@ -528,12 +642,14 @@ class WatchTogetherApp {
                 isSystem: true
             });
         } catch (error) {
-            console.error('Error adding system message:', error);
+            console.error('System message error:', error);
         }
     }
 
     displayMessage(message) {
         const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message';
 
@@ -571,16 +687,25 @@ class WatchTogetherApp {
             });
 
             const localVideo = document.getElementById('local-video');
-            localVideo.srcObject = this.localStream;
+            if (localVideo) {
+                localVideo.srcObject = this.localStream;
+            }
 
-            document.getElementById('video-call-window').classList.remove('hidden');
+            const callWindow = document.getElementById('video-call-window');
+            if (callWindow) {
+                callWindow.classList.remove('hidden');
+            }
+
             this.hideLoading();
 
-            this.addSystemMessage(`${this.getDisplayName()} started a video call`);
+            if (this.currentRoom) {
+                this.addSystemMessage(`${this.getDisplayName()} started a video call`);
+            }
             this.showToast('Video call started!', 'success');
 
         } catch (error) {
             this.hideLoading();
+            console.error('Video call error:', error);
             this.showToast('Error accessing camera/microphone: ' + error.message, 'error');
         }
     }
@@ -591,8 +716,14 @@ class WatchTogetherApp {
             this.localStream = null;
         }
 
-        document.getElementById('video-call-window').classList.add('hidden');
-        this.addSystemMessage(`${this.getDisplayName()} ended the video call`);
+        const callWindow = document.getElementById('video-call-window');
+        if (callWindow) {
+            callWindow.classList.add('hidden');
+        }
+
+        if (this.currentRoom) {
+            this.addSystemMessage(`${this.getDisplayName()} ended the video call`);
+        }
         this.showToast('Video call ended', 'info');
     }
 
@@ -602,12 +733,16 @@ class WatchTogetherApp {
         const audioTracks = this.localStream.getAudioTracks();
         const btn = document.getElementById('toggle-mic-btn');
 
-        audioTracks.forEach(track => {
-            track.enabled = !track.enabled;
-        });
+        if (audioTracks.length > 0) {
+            audioTracks.forEach(track => {
+                track.enabled = !track.enabled;
+            });
 
-        btn.classList.toggle('active', audioTracks[0]?.enabled);
-        btn.textContent = audioTracks[0]?.enabled ? '🎤' : '🔇';
+            if (btn) {
+                btn.classList.toggle('active', audioTracks[0].enabled);
+                btn.textContent = audioTracks[0].enabled ? '🎤' : '🔇';
+            }
+        }
     }
 
     toggleCamera() {
@@ -615,29 +750,39 @@ class WatchTogetherApp {
 
         const videoTracks = this.localStream.getVideoTracks();
         const btn = document.getElementById('toggle-cam-btn');
-
-        videoTracks.forEach(track => {
-            track.enabled = !track.enabled;
-        });
-
-        btn.classList.toggle('active', videoTracks[0]?.enabled);
-        btn.textContent = videoTracks[0]?.enabled ? '📹' : '📷';
-
         const localVideo = document.getElementById('local-video');
-        localVideo.style.display = videoTracks[0]?.enabled ? 'block' : 'none';
+
+        if (videoTracks.length > 0) {
+            videoTracks.forEach(track => {
+                track.enabled = !track.enabled;
+            });
+
+            if (btn) {
+                btn.classList.toggle('active', videoTracks[0].enabled);
+                btn.textContent = videoTracks[0].enabled ? '📹' : '📷';
+            }
+
+            if (localVideo) {
+                localVideo.style.display = videoTracks[0].enabled ? 'block' : 'none';
+            }
+        }
     }
 
     minimizeVideoCall() {
         const callWindow = document.getElementById('video-call-window');
         const btn = document.getElementById('minimize-call-btn');
 
-        callWindow.classList.toggle('minimized');
-        btn.textContent = callWindow.classList.contains('minimized') ? '+' : '−';
+        if (callWindow && btn) {
+            callWindow.classList.toggle('minimized');
+            btn.textContent = callWindow.classList.contains('minimized') ? '+' : '−';
+        }
     }
 
     // Room Listeners and Updates
     setupRoomListeners() {
         if (!this.currentRoom) return;
+
+        console.log('🎧 Setting up room listeners for:', this.currentRoom);
 
         const roomRef = this.database.ref(`rooms/${this.currentRoom}`);
 
@@ -679,7 +824,7 @@ class WatchTogetherApp {
     }
 
     setupJoinRequestListener() {
-        if (!this.currentRoom) return;
+        if (!this.currentRoom || !this.currentUser) return;
 
         this.database.ref(`rooms/${this.currentRoom}/joinRequests/${this.currentUser.uid}`)
             .on('value', (snapshot) => {
@@ -706,6 +851,7 @@ class WatchTogetherApp {
         if (!request) return;
 
         try {
+            // Add user to room
             await this.database.ref(`rooms/${this.currentRoom}/users/${userId}`).set({
                 email: request.email,
                 displayName: request.displayName,
@@ -714,16 +860,17 @@ class WatchTogetherApp {
                 isCreator: false
             });
 
+            // Update request status
             await this.database.ref(`rooms/${this.currentRoom}/joinRequests/${userId}`).update({
                 status: 'approved'
             });
 
             this.addSystemMessage(`${request.displayName} joined the room`);
-            this.addToHistory(`${request.displayName} was approved and joined`);
             this.hideJoinRequestModal();
-            this.showToast('User approved', 'success');
+            this.showToast('User approved and added to room', 'success');
 
         } catch (error) {
+            console.error('Approve request error:', error);
             this.showToast('Error approving user: ' + error.message, 'error');
         }
     }
@@ -738,82 +885,113 @@ class WatchTogetherApp {
             });
 
             this.hideJoinRequestModal();
-            this.showToast('User rejected', 'warning');
+            this.showToast('Join request rejected', 'warning');
 
         } catch (error) {
+            console.error('Reject request error:', error);
             this.showToast('Error rejecting user: ' + error.message, 'error');
         }
     }
 
     // UI Management
     showAuth() {
-        document.getElementById('auth-panel').classList.remove('hidden');
-        document.getElementById('app-panel').classList.add('hidden');
+        const authPanel = document.getElementById('auth-panel');
+        const appPanel = document.getElementById('app-panel');
+
+        if (authPanel) authPanel.classList.remove('hidden');
+        if (appPanel) appPanel.classList.add('hidden');
     }
 
     showApp() {
-        document.getElementById('auth-panel').classList.add('hidden');
-        document.getElementById('app-panel').classList.remove('hidden');
+        const authPanel = document.getElementById('auth-panel');
+        const appPanel = document.getElementById('app-panel');
+
+        if (authPanel) authPanel.classList.add('hidden');
+        if (appPanel) appPanel.classList.remove('hidden');
 
         // Update user display
         const displayName = this.getDisplayName();
-        document.getElementById('user-display-name').textContent = displayName;
+        const userDisplayName = document.getElementById('user-display-name');
+        if (userDisplayName) {
+            userDisplayName.textContent = displayName;
+        }
 
         // Show/hide creator section
         const creatorSection = document.getElementById('creator-section');
         const userRoleBadge = document.getElementById('user-role-badge');
 
         if (this.isAuthorizedCreator()) {
-            creatorSection.classList.remove('hidden');
-            userRoleBadge.textContent = 'Creator';
-            userRoleBadge.className = 'badge creator';
+            if (creatorSection) creatorSection.classList.remove('hidden');
+            if (userRoleBadge) {
+                userRoleBadge.textContent = 'Creator';
+                userRoleBadge.className = 'badge creator';
+            }
         } else {
-            creatorSection.classList.add('hidden');
-            userRoleBadge.textContent = 'Member';
-            userRoleBadge.className = 'badge member';
+            if (creatorSection) creatorSection.classList.add('hidden');
+            if (userRoleBadge) {
+                userRoleBadge.textContent = 'Member';
+                userRoleBadge.className = 'badge member';
+            }
         }
 
         this.showLandingPage();
     }
 
     showLandingPage() {
-        document.getElementById('landing-page').classList.remove('hidden');
-        document.getElementById('watch-interface').classList.add('hidden');
+        const landingPage = document.getElementById('landing-page');
+        const watchInterface = document.getElementById('watch-interface');
+
+        if (landingPage) landingPage.classList.remove('hidden');
+        if (watchInterface) watchInterface.classList.add('hidden');
     }
 
     showWatchInterface() {
-        document.getElementById('landing-page').classList.add('hidden');
-        document.getElementById('watch-interface').classList.remove('hidden');
+        const landingPage = document.getElementById('landing-page');
+        const watchInterface = document.getElementById('watch-interface');
+
+        if (landingPage) landingPage.classList.add('hidden');
+        if (watchInterface) watchInterface.classList.remove('hidden');
 
         // Update room display
-        document.getElementById('current-room-id').textContent = this.currentRoom;
+        const roomIdDisplay = document.getElementById('current-room-id');
+        if (roomIdDisplay) {
+            roomIdDisplay.textContent = this.currentRoom;
+        }
 
         // Show creator controls if creator
         const creatorControls = document.getElementById('creator-controls');
-        if (this.isCreator) {
+        if (this.isCreator && creatorControls) {
             creatorControls.classList.remove('hidden');
             this.updatePendingRequestsList();
-            this.updateSessionHistory();
-        } else {
+        } else if (creatorControls) {
             creatorControls.classList.add('hidden');
         }
     }
 
     showJoinRequestModal(userId, request) {
         const modal = document.getElementById('join-request-modal');
-        modal.dataset.userId = userId;
-        this.pendingRequests.set(userId, request);
+        const requesterName = document.getElementById('requester-name');
 
-        document.getElementById('requester-name').textContent = request.displayName || request.email;
-        modal.classList.remove('hidden');
+        if (modal && requesterName) {
+            modal.dataset.userId = userId;
+            this.pendingRequests.set(userId, request);
+
+            requesterName.textContent = request.displayName || request.email;
+            modal.classList.remove('hidden');
+        }
     }
 
     hideJoinRequestModal() {
-        document.getElementById('join-request-modal').classList.add('hidden');
+        const modal = document.getElementById('join-request-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
     }
 
     updateMembersList(users) {
         const membersList = document.getElementById('members-list');
+        if (!membersList) return;
+
         membersList.innerHTML = '';
 
         Object.entries(users).forEach(([userId, userData]) => {
@@ -832,17 +1010,25 @@ class WatchTogetherApp {
     }
 
     updateViewerCount(count) {
-        document.getElementById('viewers-count').textContent = `👥 ${count} viewer${count !== 1 ? 's' : ''}`;
+        const viewersCount = document.getElementById('viewers-count');
+        if (viewersCount) {
+            viewersCount.textContent = `👥 ${count} viewer${count !== 1 ? 's' : ''}`;
+        }
     }
 
     updatePendingRequestsList() {
         if (!this.isCreator) return;
 
         const requestsList = document.getElementById('pending-requests-list');
+        if (!requestsList) return;
+
+        // Clear existing requests
         requestsList.innerHTML = '';
 
+        let hasPending = false;
         this.pendingRequests.forEach((request, userId) => {
             if (request.status === 'pending') {
+                hasPending = true;
                 const requestDiv = document.createElement('div');
                 requestDiv.className = 'request-item';
                 requestDiv.innerHTML = `
@@ -855,20 +1041,10 @@ class WatchTogetherApp {
                 requestsList.appendChild(requestDiv);
             }
         });
-    }
 
-    updateSessionHistory() {
-        if (!this.isCreator) return;
-
-        const historyLog = document.getElementById('session-history');
-        historyLog.innerHTML = '';
-
-        this.sessionHistory.slice(-10).forEach(entry => {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.textContent = `${new Date(entry.timestamp).toLocaleTimeString()} - ${entry.message}`;
-            historyLog.appendChild(historyItem);
-        });
+        if (!hasPending) {
+            requestsList.innerHTML = '<p class="no-requests">No pending requests</p>';
+        }
     }
 
     updateSyncStatus(status) {
@@ -876,10 +1052,10 @@ class WatchTogetherApp {
         if (!indicator) return;
 
         const statusMap = {
-            'ready': { text: 'Ready', class: 'status status-info' },
-            'syncing': { text: 'Syncing...', class: 'status status-warning' },
-            'synced': { text: 'Synced', class: 'status status-success' },
-            'error': { text: 'Error', class: 'status status-error' }
+            'ready': { text: '⚡ Ready', class: 'status status-info' },
+            'syncing': { text: '🔄 Syncing...', class: 'status status-warning' },
+            'synced': { text: '✅ Synced', class: 'status status-success' },
+            'error': { text: '❌ Error', class: 'status status-error' }
         };
 
         const statusInfo = statusMap[status] || statusMap.ready;
@@ -891,47 +1067,47 @@ class WatchTogetherApp {
     copyRoomId() {
         if (!this.currentRoom) return;
 
-        navigator.clipboard.writeText(this.currentRoom).then(() => {
-            this.showToast('Room ID copied!', 'success');
-        }).catch(() => {
-            this.showToast('Failed to copy room ID', 'error');
-        });
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(this.currentRoom).then(() => {
+                this.showToast('Room ID copied to clipboard!', 'success');
+            }).catch(() => {
+                this.showToast('Failed to copy room ID', 'error');
+            });
+        } else {
+            // Fallback for older browsers
+            this.showToast('Room ID: ' + this.currentRoom, 'info');
+        }
     }
 
     shareRoom() {
         if (!this.currentRoom) return;
 
         const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.currentRoom}`;
+        const shareText = `Join me for a synchronized movie night! Room ID: ${this.currentRoom}`;
 
         if (navigator.share) {
             navigator.share({
-                title: 'Join my WatchTogether room!',
-                text: `Join me for a movie night! Room ID: ${this.currentRoom}`,
+                title: 'WatchTogether - Join my room!',
+                text: shareText,
                 url: shareUrl
+            }).catch(() => {
+                // Fallback to clipboard
+                this.fallbackShare(shareUrl);
             });
         } else {
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                this.showToast('Share link copied!', 'success');
-            }).catch(() => {
-                this.showToast('Room ID: ' + this.currentRoom, 'info');
-            });
+            this.fallbackShare(shareUrl);
         }
     }
 
-    addToHistory(message) {
-        this.sessionHistory.push({
-            message: message,
-            timestamp: Date.now()
-        });
-
-        if (this.isCreator) {
-            this.updateSessionHistory();
-
-            // Also save to Firebase for persistence
-            this.database.ref(`rooms/${this.currentRoom}/history`).push({
-                message: message,
-                timestamp: Date.now()
+    fallbackShare(shareUrl) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                this.showToast('Share link copied to clipboard!', 'success');
+            }).catch(() => {
+                this.showToast(`Share this link: ${shareUrl}`, 'info');
             });
+        } else {
+            this.showToast(`Share this link: ${shareUrl}`, 'info');
         }
     }
 
@@ -939,17 +1115,17 @@ class WatchTogetherApp {
         // Check multiple creator authorization methods
         if (!this.currentUser) return false;
 
-        // Method 1: Creator code
+        // Method 1: Creator code (client-side UI only)
         if (this.currentUser.isCreatorByCode) return true;
 
-        // Method 2: Email authorization (replace with your email)
+        // Method 2: Email authorization
         const AUTHORIZED_CREATOR_EMAILS = ['keshavkuma0634@gmail.com'];
         if (this.currentUser.email && AUTHORIZED_CREATOR_EMAILS.includes(this.currentUser.email)) {
             return true;
         }
 
-        // Method 3: UID authorization (for anonymous users)
-        const AUTHORIZED_CREATOR_UIDS = []; // Add your test UIDs here
+        // Method 3: UID authorization (for testing)
+        const AUTHORIZED_CREATOR_UIDS = []; // Add your test UIDs here if needed
         if (AUTHORIZED_CREATOR_UIDS.includes(this.currentUser.uid)) {
             return true;
         }
@@ -1019,8 +1195,11 @@ class WatchTogetherApp {
             const winHeight = window.innerHeight;
             const winWidth = window.innerWidth;
 
-            element.style.top = Math.max(0, Math.min(element.offsetTop - pos2, winHeight - element.offsetHeight)) + "px";
-            element.style.left = Math.max(0, Math.min(element.offsetLeft - pos1, winWidth - element.offsetWidth)) + "px";
+            const newTop = Math.max(0, Math.min(element.offsetTop - pos2, winHeight - element.offsetHeight));
+            const newLeft = Math.max(0, Math.min(element.offsetLeft - pos1, winWidth - element.offsetWidth));
+
+            element.style.top = newTop + "px";
+            element.style.left = newLeft + "px";
         }
 
         function closeDragElement() {
@@ -1030,62 +1209,102 @@ class WatchTogetherApp {
     }
 
     showLoading(message) {
-        document.getElementById('loading-message').textContent = message;
-        document.getElementById('loading-overlay').classList.remove('hidden');
+        const loadingMessage = document.getElementById('loading-message');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        if (loadingMessage) loadingMessage.textContent = message;
+        if (loadingOverlay) loadingOverlay.classList.remove('hidden');
     }
 
     hideLoading() {
-        document.getElementById('loading-overlay').classList.add('hidden');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
 
     showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
+        if (!container) return;
+
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.textContent = message;
 
         container.appendChild(toast);
 
+        // Auto remove after 5 seconds
         setTimeout(() => {
             if (toast.parentNode) {
                 toast.remove();
             }
         }, 5000);
+
+        // Remove on click
+        toast.addEventListener('click', () => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        });
     }
 
     // Global method access for onclick handlers
     approveSpecificRequest(userId) {
         const modal = document.getElementById('join-request-modal');
-        modal.dataset.userId = userId;
-        this.approveJoinRequest();
+        if (modal) {
+            modal.dataset.userId = userId;
+            this.approveJoinRequest();
+        }
     }
 
     rejectSpecificRequest(userId) {
         const modal = document.getElementById('join-request-modal');
-        modal.dataset.userId = userId;
-        this.rejectJoinRequest();
+        if (modal) {
+            modal.dataset.userId = userId;
+            this.rejectJoinRequest();
+        }
     }
 }
 
-// Initialize the app
+// Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Initializing WatchTogether App...');
+
+    // Make app globally accessible
     window.app = new WatchTogetherApp();
 
-    // Check for room parameter in URL
+    // Check for room parameter in URL for auto-join
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('room')) {
         const roomId = urlParams.get('room').toUpperCase();
+        console.log('🔗 Room ID found in URL:', roomId);
+
         // Auto-fill room ID when user reaches landing page
         setTimeout(() => {
             const roomInput = document.getElementById('room-id-input');
             if (roomInput) {
                 roomInput.value = roomId;
+                window.app.showToast(`Room ID ${roomId} pre-filled from link!`, 'info');
             }
-        }, 1000);
+        }, 2000);
     }
 });
 
 // YouTube API ready callback
 window.onYouTubeIframeAPIReady = () => {
-    console.log('YouTube API ready');
+    console.log('📺 YouTube API ready');
 };
+
+// Global error handler
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    if (window.app) {
+        window.app.showToast('An unexpected error occurred', 'error');
+    }
+});
+
+// Handle page visibility change to pause video when tab is hidden
+document.addEventListener('visibilitychange', () => {
+    if (window.app && window.app.youtubePlayer && document.visibilityState === 'hidden') {
+        // Optionally pause when tab is hidden
+        // window.app.youtubePlayer.pauseVideo();
+    }
+});
