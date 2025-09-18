@@ -202,59 +202,59 @@ class WatchTogetherApp {
     }
 
     // Room Management
-    async createRoom() {
-        if (!this.isAuthorizedCreator()) {
-            this.showToast('Only authorized creators can create rooms', 'error');
-            return;
-        }
-
-        const maxUsers = parseInt(document.getElementById('max-users-input').value) || 4;
-        const roomId = this.generateRoomId();
-
-        try {
-            this.showLoading('Creating room...');
-
-            const roomData = {
-                id: roomId,
-                creator: this.currentUser.uid,
-                creatorEmail: this.currentUser.email || 'Anonymous Creator',
-                maxUsers: maxUsers,
-                createdAt: Date.now(),
-                users: {
-                    [this.currentUser.uid]: {
-                        email: this.currentUser.email || 'Anonymous',
-                        displayName: this.getDisplayName(),
-                        joinedAt: Date.now(),
-                        approved: true,
-                        isCreator: true
-                    }
-                },
-                joinRequests: {},
-                videoState: {
-                    videoId: null,
-                    isPlaying: false,
-                    currentTime: 0,
-                    lastUpdated: Date.now()
-                },
-                messages: {},
-                history: {}
-            };
-
-            await this.database.ref(`rooms/${roomId}`).set(roomData);
-
-            this.currentRoom = roomId;
-            this.isCreator = true;
-            this.hideLoading();
-            this.showWatchInterface();
-            this.setupRoomListeners();
-            this.showToast(`Room ${roomId} created!`, 'success');
-            this.addToHistory(`Room created by ${this.getDisplayName()}`);
-
-        } catch (error) {
-            this.hideLoading();
-            this.showToast('Error creating room: ' + error.message, 'error');
-        }
+  async createRoom() {
+    if (!this.isAuthorizedCreator()) {
+        this.showToast('Only authorized creators can create rooms', 'error');
+        return;
     }
+    const maxUsers = parseInt(document.getElementById('max-users-input').value) || 4;
+    const roomId = this.generateRoomId();
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        this.showToast('User not authenticated!', 'error');
+        return;
+    }
+    try {
+        this.showLoading('Creating room...');
+        const roomData = {
+            id: roomId,
+            creator: user.uid,              // Use freshly fetched Firebase Auth user
+            creatorEmail: user.email || 'Anonymous Creator',
+            maxUsers: maxUsers,
+            createdAt: Date.now(),
+            users: {
+                [user.uid]: {
+                    email: user.email || 'Anonymous',
+                    displayName: this.getDisplayName(),
+                    joinedAt: Date.now(),
+                    approved: true,
+                    isCreator: true
+                }
+            },
+            joinRequests: {},
+            videoState: {
+                videoId: null,
+                isPlaying: false,
+                currentTime: 0,
+                lastUpdated: Date.now()
+            },
+            messages: {},
+            history: {}
+        };
+        await this.database.ref(`rooms/${roomId}`).set(roomData);
+        this.currentRoom = roomId;
+        this.isCreator = true;
+        this.hideLoading();
+        this.showWatchInterface();
+        this.setupRoomListeners();
+        this.showToast(`Room ${roomId} created!`, 'success');
+        this.addToHistory(`Room created by ${this.getDisplayName()}`);
+    } catch (error) {
+        this.hideLoading();
+        this.showToast('Error creating room: ' + error.message, 'error');
+    }
+}
+
 
     async joinRoom() {
         const roomId = document.getElementById('room-id-input').value.trim().toUpperCase();
