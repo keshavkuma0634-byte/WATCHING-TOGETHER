@@ -945,7 +945,7 @@ class WatchTogetherApp {
         }
 
         // Method 3: UID authorization (for anonymous users)
-        const AUTHORIZED_CREATOR_UIDS = []; // Add your test UIDs here
+        const AUTHORIZED_CREATOR_UIDS = ['DONCHANDU12']; // Add your test UIDs here
         if (AUTHORIZED_CREATOR_UIDS.includes(this.currentUser.uid)) {
             return true;
         }
