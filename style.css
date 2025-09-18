@@ -1,5 +1,4 @@
-# Create the complete, optimized CSS file
-css_content = '''/* Modern WatchTogether Styles - Complete & Fixed */
+/* Modern WatchTogether Styles - Complete & Fixed */
 * {
     margin: 0;
     padding: 0;
@@ -760,11 +759,11 @@ button:active {
     .main-content {
         grid-template-columns: 1fr;
     }
-    
+
     .sidebar {
         flex-direction: row;
     }
-    
+
     .chat-section, .members-section {
         flex: 1;
     }
@@ -774,43 +773,43 @@ button:active {
     body {
         padding: 10px;
     }
-    
+
     .room-header {
         flex-direction: column;
         gap: 15px;
         text-align: center;
     }
-    
+
     .input-group {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .input-group label {
         min-width: auto;
         margin-bottom: 5px;
         text-align: left;
     }
-    
+
     .sidebar {
         flex-direction: column;
     }
-    
+
     .video-call-window {
         width: 280px;
         height: 220px;
         bottom: 10px;
         right: 10px;
     }
-    
+
     .video-streams {
         height: 140px;
     }
-    
+
     #video-container {
         height: 250px;
     }
-    
+
     .modal-actions {
         flex-direction: column;
     }
@@ -824,20 +823,20 @@ button:active {
     .members-section {
         padding: 20px;
     }
-    
+
     #video-container {
         height: 200px;
     }
-    
+
     .chat-section {
         height: 300px;
     }
-    
+
     button {
         padding: 14px 18px;
         font-size: 14px;
     }
-    
+
     .video-call-window {
         width: calc(100vw - 20px);
         height: 180px;
@@ -864,9 +863,4 @@ button:active {
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(135deg, #5a6fd8, #6a4190);
-}'''
-
-with open('style.css', 'w') as f:
-    f.write(css_content)
-
-print("✅ Created optimized style.css!")
+}
