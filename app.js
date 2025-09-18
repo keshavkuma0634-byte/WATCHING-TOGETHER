@@ -241,6 +241,10 @@ class WatchTogetherApp {
             messages: {},
             history: {}
         };
+        console.log('Attempting to create room with data:', roomData);
+        console.log('Authenticated user UID:', user.uid);
+        console.log('Room creator UID in data:', roomData.creator);
+        await this.database.ref(`rooms/${roomId}`).set(roomData);
         await this.database.ref(`rooms/${roomId}`).set(roomData);
         this.currentRoom = roomId;
         this.isCreator = true;
@@ -945,7 +949,7 @@ class WatchTogetherApp {
         }
 
         // Method 3: UID authorization (for anonymous users)
-        const AUTHORIZED_CREATOR_UIDS = ['DONCHANDU12']; // Add your test UIDs here
+        const AUTHORIZED_CREATOR_UIDS = []; // Add your test UIDs here
         if (AUTHORIZED_CREATOR_UIDS.includes(this.currentUser.uid)) {
             return true;
         }
