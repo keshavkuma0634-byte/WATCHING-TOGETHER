@@ -64,76 +64,119 @@ class WatchTogetherApp {
         document.getElementById('reject-btn').addEventListener('click', () => this.rejectJoinRequest());
     }
 
-    checkAuthState() {
-        this.showLoading('Checking authentication...');
 
-        // Check if this is a magic link
-        if (this.auth.isSignInWithEmailLink(window.location.href)) {
-            this.handleMagicLinkSignIn();
-            return;
-        }
+// Initialize Firebase Auth as usual at top:
+const auth = firebase.auth();
 
-        // Check current auth state
-        this.auth.onAuthStateChanged((user) => {
-            this.hideLoading();
-            if (user) {
-                this.currentUser = user;
-                this.showApp();
-            } else {
-                this.showAuth();
-            }
-        });
+function signInAnonymously() {
+  auth.signInAnonymously()
+    .then(result => {
+      currentUser = result.user;
+      console.log('Signed in anonymously as:', currentUser.uid);
+      showAppUIAfterSignIn(currentUser);
+    })
+    .catch(error => {
+      console.error('Anonymous sign-in failed:', error);
+      showToast('Sign-in error: ' + error.message, 'error');
+    });
+}
+
+// Replace window.onload or auth state check with:
+
+window.onload = function() {
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      currentUser = user;
+      showAppUIAfterSignIn(user);
+    } else {
+      // Sign in anonymously if not logged in
+      signInAnonymously();
     }
+  });
+};
 
-    async sendMagicLink() {
-        const email = document.getElementById('email-input').value.trim();
-        if (!email) {
-            this.showToast('Please enter your email', 'error');
-            return;
-        }
+function showAppUIAfterSignIn(user) {
+  // Show main UI, set user email or ID
+  document.getElementById('auth-panel').classList.add('hidden');
+  document.getElementById('app-panel').classList.remove('hidden');
 
-        const actionCodeSettings = {
-            url: window.location.href,
-            handleCodeInApp: true
-        };
+  // Show user info with UID since no email
+  document.getElementById('user-email').textContent = user.isAnonymous ? 'Guest User (' + user.uid.slice(0,6) + ')' : user.email;
 
-        try {
-            this.showLoading('Sending magic link...');
-            await this.auth.sendSignInLinkToEmail(email, actionCodeSettings);
-            localStorage.setItem('emailForSignIn', email);
-            this.hideLoading();
-            this.showToast('Magic link sent! Check your email.', 'success');
-        } catch (error) {
-            this.hideLoading();
-            this.showToast('Error: ' + error.message, 'error');
-        }
-    }
+  // Other setup logic after sign-in
+}
 
-    async handleMagicLinkSignIn() {
-        let email = localStorage.getItem('emailForSignIn');
-        if (!email) {
-            email = prompt('Please provide your email for confirmation');
-        }
 
-        try {
-            this.showLoading('Signing in...');
-            await this.auth.signInWithEmailLink(email, window.location.href);
-            localStorage.removeItem('emailForSignIn');
-            window.history.replaceState({}, document.title, window.location.pathname);
-            this.hideLoading();
-            this.showToast('Successfully signed in!', 'success');
-        } catch (error) {
-            this.hideLoading();
-            this.showToast('Sign in error: ' + error.message, 'error');
-        }
-    }
+    // checkAuthState() {
+    //     this.showLoading('Checking authentication...');
 
-    signOut() {
-        this.auth.signOut();
-        this.currentUser = null;
-        this.currentRoom = null;
-        this.showAuth();
-    }
+    //     // Check if this is a magic link
+    //     if (this.auth.isSignInWithEmailLink(window.location.href)) {
+    //         this.handleMagicLinkSignIn();
+    //         return;
+    //     }
+
+    //     // Check current auth state
+    //     this.auth.onAuthStateChanged((user) => {
+    //         this.hideLoading();
+    //         if (user) {
+    //             this.currentUser = user;
+    //             this.showApp();
+    //         } else {
+    //             this.showAuth();
+    //         }
+    //     });
+    // }
+
+    // async sendMagicLink() {
+    //     const email = document.getElementById('email-input').value.trim();
+    //     if (!email) {
+    //         this.showToast('Please enter your email', 'error');
+    //         return;
+    //     }
+
+    //     const actionCodeSettings = {
+    //         url: window.location.href,
+    //         handleCodeInApp: true
+    //     };
+
+    //     try {
+    //         this.showLoading('Sending magic link...');
+    //         await this.auth.sendSignInLinkToEmail(email, actionCodeSettings);
+    //         localStorage.setItem('emailForSignIn', email);
+    //         this.hideLoading();
+    //         this.showToast('Magic link sent! Check your email.', 'success');
+    //     } catch (error) {
+    //         this.hideLoading();
+    //         this.showToast('Error: ' + error.message, 'error');
+    //     }
+    // }
+
+    // async handleMagicLinkSignIn() {
+    //     let email = localStorage.getItem('emailForSignIn');
+    //     if (!email) {
+    //         email = prompt('Please provide your email for confirmation');
+    //     }
+
+    //     try {
+    //         this.showLoading('Signing in...');
+    //         await this.auth.signInWithEmailLink(email, window.location.href);
+    //         localStorage.removeItem('emailForSignIn');
+    //         window.history.replaceState({}, document.title, window.location.pathname);
+    //         this.hideLoading();
+    //         this.showToast('Successfully signed in!', 'success');
+    //     } catch (error) {
+    //         this.hideLoading();
+    //         this.showToast('Sign in error: ' + error.message, 'error');
+    //     }
+    // }
+
+    // signOut() {
+    //     this.auth.signOut();
+    //     this.currentUser = null;
+    //     this.currentRoom = null;
+    //     this.showAuth();
+    // }
 
     async createRoom() {
         const maxUsers = parseInt(document.getElementById('max-users').value) || 2;
