@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WatchTogether - Secure Synchronized Movie Watching</title>
+    <title>WatchTogether - Sync Movies & Watch Together</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Firebase SDKs - MUST BE LOADED FIRST -->
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <!-- YouTube API -->
     <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
@@ -24,19 +26,19 @@
     <div id="auth-panel">
         <div class="card">
             <h1>🎬 WatchTogether</h1>
-            <p class="subtitle">Watch movies together, anywhere!</p>
+            <p class="subtitle">Watch movies together, anywhere in sync!</p>
 
-            <!-- Email Authentication (when quota available) -->
+            <!-- Email Authentication -->
             <div id="email-auth-section">
                 <div class="input-group">
                     <input type="email" id="email-input" placeholder="Enter your email" required>
-                    <button id="send-magic-link-btn">Send Magic Link</button>
+                    <button id="send-magic-link-btn" class="primary">Send Magic Link</button>
                 </div>
                 <p class="note">We'll send you a secure link to sign in</p>
                 <div class="divider">OR</div>
             </div>
 
-            <!-- Anonymous Sign-In (for testing/quota issues) -->
+            <!-- Anonymous Sign-In -->
             <div id="anonymous-auth-section">
                 <button id="anonymous-signin-btn" class="secondary">Sign In as Guest</button>
                 <p class="note">Quick sign-in for testing (no email required)</p>
@@ -47,7 +49,7 @@
             <div id="creator-code-section">
                 <div class="input-group">
                     <input type="text" id="creator-code-input" placeholder="Enter Creator Code" maxlength="20">
-                    <button id="creator-code-btn">Sign In as Creator</button>
+                    <button id="creator-code-btn" class="primary">Sign In as Creator</button>
                 </div>
                 <p class="note">For pre-authorized creators only</p>
             </div>
@@ -61,41 +63,35 @@
             <span id="user-info">Welcome, <span id="user-display-name"></span>!</span>
             <div class="user-controls">
                 <span id="user-role-badge" class="badge"></span>
-                <button id="sign-out-btn" class="small">Sign Out</button>
+                <button id="sign-out-btn" class="small danger">Sign Out</button>
             </div>
         </div>
 
         <!-- Landing Page -->
         <div id="landing-page">
             <div class="card">
-                <h2>Room Management</h2>
+                <h2>🎪 Room Management</h2>
 
                 <!-- Creator Only Section -->
                 <div id="creator-section" class="hidden">
                     <div class="section">
-                        <h3>🎪 Create New Room</h3>
+                        <h3>🎬 Create New Room</h3>
                         <div class="input-group">
                             <label>Max Users:</label>
                             <input type="number" id="max-users-input" min="2" max="20" value="4">
                         </div>
-                        <button id="create-room-btn" class="primary">Create Room</button>
+                        <button id="create-room-btn" class="primary">🚀 Create Room</button>
                     </div>
                     <div class="divider"></div>
                 </div>
 
-                <!-- Join Room Section (For Everyone) -->
+                <!-- Join Room Section -->
                 <div class="section">
                     <h3>🔗 Join Existing Room</h3>
                     <div class="input-group">
-                        <input type="text" id="room-id-input" placeholder="Enter Room ID" maxlength="10">
-                        <button id="join-room-btn" class="secondary">Join Room</button>
+                        <input type="text" id="room-id-input" placeholder="Enter Room ID (e.g. ABC123)" maxlength="10">
+                        <button id="join-room-btn" class="secondary">🎯 Join Room</button>
                     </div>
-                </div>
-
-                <!-- My Rooms History -->
-                <div id="room-history-section" class="hidden">
-                    <h3>📚 Your Recent Rooms</h3>
-                    <div id="room-history-list"></div>
                 </div>
             </div>
         </div>
@@ -107,10 +103,10 @@
                 <div class="room-info">
                     <span class="room-title">Room: <strong id="current-room-id"></strong></span>
                     <button id="copy-room-id-btn" class="small">📋 Copy ID</button>
-                    <button id="share-room-btn" class="small">🔗 Share Link</button>
+                    <button id="share-room-btn" class="small">🔗 Share</button>
                 </div>
                 <div class="room-controls">
-                    <span id="connection-status" class="status status-info">Connected</span>
+                    <span id="connection-status" class="status status-success">🟢 Connected</span>
                     <button id="leave-room-btn" class="small danger">🚪 Leave Room</button>
                 </div>
             </div>
@@ -131,17 +127,17 @@
                     <div class="video-controls">
                         <div class="input-group">
                             <input type="url" id="video-url-input" placeholder="Paste YouTube URL here...">
-                            <button id="load-video-btn">🎬 Load Video</button>
+                            <button id="load-video-btn" class="primary">🎬 Load Video</button>
                         </div>
                         <div class="video-status">
-                            <button id="sync-video-btn" class="small">🔄 Sync</button>
+                            <button id="sync-video-btn" class="small">🔄 Force Sync</button>
                             <span id="sync-status" class="status status-info">Ready</span>
-                            <span id="viewers-count" class="viewers">👥 0 viewers</span>
+                            <span id="viewers-count" class="viewers">👥 1 viewer</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Chat & Controls Section -->
+                <!-- Chat & Members Sidebar -->
                 <div class="sidebar">
                     <!-- Chat -->
                     <div class="chat-section">
@@ -153,7 +149,7 @@
                         <div class="chat-input-area">
                             <div class="input-group">
                                 <input type="text" id="chat-input" placeholder="Type a message..." maxlength="500">
-                                <button id="send-chat-btn">Send</button>
+                                <button id="send-chat-btn" class="primary">Send</button>
                             </div>
                         </div>
                     </div>
@@ -169,12 +165,14 @@
             <!-- Creator Controls -->
             <div id="creator-controls" class="creator-controls hidden">
                 <div class="card">
-                    <h3>🎪 Creator Controls</h3>
+                    <h3>🎪 Creator Dashboard</h3>
 
                     <!-- Pending Join Requests -->
                     <div class="control-section">
                         <h4>📋 Pending Join Requests</h4>
-                        <div id="pending-requests-list"></div>
+                        <div id="pending-requests-list">
+                            <p class="no-requests">No pending requests</p>
+                        </div>
                     </div>
 
                     <!-- Room Settings -->
@@ -185,12 +183,6 @@
                             <input type="number" id="room-max-users" min="2" max="20" disabled>
                         </div>
                     </div>
-
-                    <!-- Session History -->
-                    <div class="control-section">
-                        <h4>📜 Session History</h4>
-                        <div id="session-history" class="history-log"></div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -199,7 +191,7 @@
     <!-- Join Request Modal -->
     <div id="join-request-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>New Join Request</h3>
+            <h3>✋ New Join Request</h3>
             <p><strong id="requester-name"></strong> wants to join your room.</p>
             <div class="modal-actions">
                 <button id="approve-request-btn" class="primary">✅ Approve</button>
@@ -211,7 +203,7 @@
     <!-- Video Call Window -->
     <div id="video-call-window" class="video-call-window hidden">
         <div class="call-header">
-            <span class="call-title">📞 Video Call</span>
+            <span class="call-title">📞 Video Call Active</span>
             <div class="call-header-controls">
                 <button id="minimize-call-btn" class="header-btn">−</button>
                 <button id="close-call-btn" class="header-btn">✕</button>
@@ -228,6 +220,7 @@
         </div>
     </div>
 
+    <!-- Load App Script AFTER Firebase -->
     <script src="app.js"></script>
 </body>
 </html>
