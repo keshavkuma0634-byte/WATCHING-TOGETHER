@@ -413,15 +413,6 @@ class WatchTogetherApp {
             this.showToast('Error leaving room: ' + error.message, 'error');
         }
     }
-document.getElementById('delete-room-btn').addEventListener('click', async () => {
-  if (!confirm('Are you sure you want to delete your room forever?')) return;
-  await firebase.database().ref('rooms/' + app.currentRoom).remove();
-  app.currentRoom = null;
-  app.isCreator = false;
-  app.showLandingPage();
-  app.showToast('Room deleted!', 'success');
-});
-
     // Video Management
     async loadVideo() {
         const url = document.getElementById('video-url-input').value.trim();
