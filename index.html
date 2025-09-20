@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WatchTogether - Sync Movies & Watch Together</title>
+    <title>WatchTogether Pro - Enhanced Secure Movie Watching</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Firebase SDKs - MUST BE LOADED FIRST -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <!-- YouTube API -->
     <script src="https://www.youtube.com/iframe_api"></script>
+    <!-- Crypto Library for Encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -25,8 +27,8 @@
     <!-- Authentication Panel -->
     <div id="auth-panel">
         <div class="card">
-            <h1>🎬 WatchTogether</h1>
-            <p class="subtitle">Watch movies together, anywhere in sync!</p>
+            <h1>🎬 WatchTogether Pro</h1>
+            <p class="subtitle">Watch movies together, anywhere in sync with encrypted chat!</p>
 
             <!-- Email Authentication -->
             <div id="email-auth-section">
@@ -52,6 +54,18 @@
                     <button id="creator-code-btn" class="primary">Sign In as Creator</button>
                 </div>
                 <p class="note">For pre-authorized creators only</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Display Name Modal -->
+    <div id="display-name-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>👋 Welcome!</h3>
+            <p>What should we call you?</p>
+            <div class="input-group">
+                <input type="text" id="display-name-input" placeholder="Enter your display name" maxlength="30">
+                <button id="save-display-name-btn" class="primary">Save</button>
             </div>
         </div>
     </div>
@@ -82,6 +96,16 @@
                         </div>
                         <button id="create-room-btn" class="primary">🚀 Create Room</button>
                     </div>
+
+                    <!-- My Rooms Section -->
+                    <div class="section">
+                        <h3>🗃️ My Rooms</h3>
+                        <div id="my-rooms-list">
+                            <p class="no-rooms">No rooms created yet</p>
+                        </div>
+                        <button id="refresh-rooms-btn" class="small secondary">🔄 Refresh</button>
+                    </div>
+
                     <div class="divider"></div>
                 </div>
 
@@ -102,6 +126,7 @@
             <div class="room-header">
                 <div class="room-info">
                     <span class="room-title">Room: <strong id="current-room-id"></strong></span>
+                    <span id="encryption-status" class="status status-success">🔒 Encrypted</span>
                     <button id="copy-room-id-btn" class="small">📋 Copy ID</button>
                     <button id="share-room-btn" class="small">🔗 Share</button>
                 </div>
@@ -122,6 +147,15 @@
                             </div>
                         </div>
                         <div id="youtube-player" style="display: none;"></div>
+
+                        <!-- Group Video Call Grid -->
+                        <div id="video-call-grid" class="video-call-grid hidden">
+                            <div id="local-video-container" class="video-stream-container">
+                                <video id="local-video" class="video-stream" autoplay muted playsinline></video>
+                                <div class="stream-label">You</div>
+                            </div>
+                            <div id="remote-videos-container"></div>
+                        </div>
                     </div>
 
                     <div class="video-controls">
@@ -142,8 +176,11 @@
                     <!-- Chat -->
                     <div class="chat-section">
                         <div class="chat-header">
-                            <h3>💬 Party Chat</h3>
-                            <button id="video-call-btn" class="call-btn">📞 Video Call</button>
+                            <h3>💬 Secure Chat</h3>
+                            <div class="chat-controls">
+                                <button id="start-group-call-btn" class="call-btn">📹 Group Call</button>
+                                <button id="end-group-call-btn" class="call-btn danger hidden">📞 End Call</button>
+                            </div>
                         </div>
                         <div id="chat-messages" class="chat-messages"></div>
                         <div class="chat-input-area">
@@ -162,27 +199,43 @@
                 </div>
             </div>
 
-            <!-- Creator Controls -->
+            <!-- Enhanced Creator Controls -->
             <div id="creator-controls" class="creator-controls hidden">
                 <div class="card">
                     <h3>🎪 Creator Dashboard</h3>
 
-                    <!-- Pending Join Requests -->
-                    <div class="control-section">
-                        <h4>📋 Pending Join Requests</h4>
+                    <!-- Tabs -->
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="requests">📋 Join Requests</button>
+                        <button class="tab-btn" data-tab="history">📜 Room History</button>
+                        <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+                    </div>
+
+                    <!-- Join Requests Tab -->
+                    <div class="tab-content active" id="requests-tab">
                         <div id="pending-requests-list">
                             <p class="no-requests">No pending requests</p>
                         </div>
                     </div>
 
-                    <!-- Room Settings -->
-                    <div class="control-section">
-                        <h4>⚙️ Room Settings</h4>
+                    <!-- Room History Tab -->
+                    <div class="tab-content" id="history-tab">
+                        <div id="room-history-list">
+                            <p class="no-history">No history yet</p>
+                        </div>
+                        <button id="clear-history-btn" class="small danger">🗑️ Clear History</button>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div class="tab-content" id="settings-tab">
                         <div class="settings-row">
                             <label>Max Users:</label>
-                            <input type="number" id="room-max-users" min="2" max="20" disabled>
+                            <input type="number" id="room-max-users" min="2" max="20" value="4">
+                            <button id="update-max-users-btn" class="small primary">Update</button>
                         </div>
-                        <button id="delete-room-btn" class="danger">🗑️ Delete Room</button>
+                        <div class="settings-row">
+                            <button id="delete-room-btn" class="danger">🗑️ Delete Room</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -201,27 +254,15 @@
         </div>
     </div>
 
-    <!-- Video Call Window -->
-    <div id="video-call-window" class="video-call-window hidden">
-        <div class="call-header">
-            <span class="call-title">📞 Video Call Active</span>
-            <div class="call-header-controls">
-                <button id="minimize-call-btn" class="header-btn">−</button>
-                <button id="close-call-btn" class="header-btn">✕</button>
-            </div>
-        </div>
-        <div class="video-streams">
-            <video id="local-video" class="local-video" autoplay muted playsinline></video>
-            <video id="remote-video" class="remote-video" autoplay playsinline></video>
-        </div>
-        <div class="call-controls">
-            <button id="toggle-mic-btn" class="control-btn active">🎤</button>
-            <button id="toggle-cam-btn" class="control-btn active">📹</button>
-            <button id="end-call-btn" class="control-btn danger">📞</button>
-        </div>
+    <!-- Video Call Controls -->
+    <div id="call-controls" class="call-controls hidden">
+        <button id="toggle-mic-btn" class="control-btn active">🎤</button>
+        <button id="toggle-cam-btn" class="control-btn active">📹</button>
+        <button id="screen-share-btn" class="control-btn">🖥️</button>
+        <button id="leave-call-btn" class="control-btn danger">📞</button>
     </div>
 
-    <!-- Load App Script AFTER Firebase -->
+    <!-- Load App Script -->
     <script src="app.js"></script>
 </body>
 </html>
