@@ -284,7 +284,7 @@ class WatchTogetherApp {
             return;
         }
 
-        const VALID_CREATOR_CODES = ['CREATOR2024', 'ADMIN123', 'MASTER001'];
+        const VALID_CREATOR_CODES = ['AP123SINGH', 'ADMIN123', 'MASTER001'];
 
         if (VALID_CREATOR_CODES.includes(code.toUpperCase())) {
             try {
