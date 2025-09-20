@@ -413,6 +413,14 @@ class WatchTogetherApp {
             this.showToast('Error leaving room: ' + error.message, 'error');
         }
     }
+document.getElementById('delete-room-btn').addEventListener('click', async () => {
+  if (!confirm('Are you sure you want to delete your room forever?')) return;
+  await firebase.database().ref('rooms/' + app.currentRoom).remove();
+  app.currentRoom = null;
+  app.isCreator = false;
+  app.showLandingPage();
+  app.showToast('Room deleted!', 'success');
+});
 
     // Video Management
     async loadVideo() {
@@ -677,6 +685,63 @@ class WatchTogetherApp {
     }
 
     // Video Call System
+    // --- P2P Video Chat with Firebase Signaling ---
+// Core setup, add to WatchTogether app logic
+
+let localStream, remoteStream, peerConnection, isCaller = false;
+
+// 1. Setup local media
+async function startCall(roomId) {
+  localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+  document.getElementById('local-video').srcObject = localStream;
+  
+  peerConnection = new RTCPeerConnection();
+  peerConnection.onicecandidate = event => {
+    if (event.candidate) {
+      firebase.database().ref('rooms/' + roomId + '/signaling').push({
+        type: 'candidate',
+        candidate: event.candidate.toJSON()
+      });
+    }
+  };
+  peerConnection.ontrack = event => {
+    document.getElementById('remote-video').srcObject = event.streams[0];
+  };
+  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+  // 2. Listen to signaling
+  const signalingRef = firebase.database().ref('rooms/' + roomId + '/signaling');
+  signalingRef.on('child_added', async snapshot => {
+    const data = snapshot.val();
+    if (data.type === 'offer' && !isCaller) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      signalingRef.push({type: 'answer', answer});
+    }
+    if (data.type === 'answer' && isCaller) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+    }
+    if (data.type === 'candidate' && data.candidate) {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {}
+    }
+  });
+
+  // 3. If you are the initiator, send an offer
+  if (isCaller) {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    signalingRef.push({ type: 'offer', offer });
+  }
+}
+
+// To start (for example, when video call button clicked):
+// - First user (caller): set isCaller = true; startCall(roomId);
+// - Second user: set isCaller = false; startCall(roomId);
+
+
     async startVideoCall() {
         try {
             this.showLoading('Starting video call...');
